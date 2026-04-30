@@ -62,6 +62,9 @@ class _HistoryScreenState extends State<HistoryScreen>
         title: const Text('Scan History'),
         bottom: TabBar(
           controller: _tab,
+          indicatorColor: Colors.white,
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.grey,
           tabs: const [
             Tab(text: 'List View'),
             Tab(text: 'Timeline'),
