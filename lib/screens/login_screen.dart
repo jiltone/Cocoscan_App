@@ -73,29 +73,37 @@ class _LoginScreenState extends State<LoginScreen>
                         color: Colors.white.withOpacity(0.04)))),
 
                   SafeArea(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        // Logo
-                        Container(
-                          width: 80, height: 80,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.18),
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white.withOpacity(0.3)),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          // Logo
+                          Container(
+                            width: 100, height: 100,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.18),
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white.withOpacity(0.3)),
+                            ),
+                            child: const Icon(Icons.eco_rounded, size: 44, color: Colors.white),
                           ),
-                          child: const Icon(Icons.eco_rounded, size: 44, color: Colors.white),
-                        ),
-                        const SizedBox(height: 16),
-                        const Text('CocoScan', style: TextStyle(
-                          fontSize: 30, fontWeight: FontWeight.w800,
-                          color: Colors.white, letterSpacing: -0.8,
-                        )),
-                        const SizedBox(height: 6),
-                        Text('Coconut Disease Detection System',
-                          style: TextStyle(fontSize: 13, color: Colors.white.withOpacity(0.75),
-                              letterSpacing: 0.2)),
-                      ],
+                          const SizedBox(height: 20),
+                          const Text('CocoScan', 
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 45, fontWeight: FontWeight.w800,
+                              color: Colors.white, letterSpacing: -0.8,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text('Coconut Disease Detection System',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 13, color: Colors.white.withOpacity(0.75),
+                                letterSpacing: 0.2)),
+                        ],
+                      ),
                     ),
                   ),
                 ],

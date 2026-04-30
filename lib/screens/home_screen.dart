@@ -204,13 +204,15 @@ class _HomeScreenState extends State<HomeScreen>
                     // ── Quick Actions ─────────────────────────────
                     _SectionHeader(title: 'Quick Actions', onSeeAll: null),
                     const SizedBox(height: 14),
-                    GridView.count(
-                      crossAxisCount: 2,
-                      mainAxisSpacing: 12,
-                      crossAxisSpacing: 12,
-                      childAspectRatio: 1.55,
+                    GridView(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        mainAxisSpacing: 12,
+                        crossAxisSpacing: 12,
+                        mainAxisExtent: 115,
+                      ),
                       children: [
                         _ActionCard(
                           icon: Icons.camera_alt_rounded,

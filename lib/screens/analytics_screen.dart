@@ -32,6 +32,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
         ],
         bottom: TabBar(
           controller: _tab,
+          indicatorColor: Colors.grey,
+          labelColor: Colors.grey,
+          unselectedLabelColor: Colors.white,  
           tabs: const [
             Tab(text: 'Overview'),
             Tab(text: 'Diseases'),
