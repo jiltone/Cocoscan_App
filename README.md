@@ -89,9 +89,5 @@ final data = json.decode(response.body);
 
 ---
 
-## 👥 Team
-- P.S. Dlshan (RU/EG/2020/3898)
-- B.T.I. Sewwandi (RU/EG/2020/4210)
-- P.K.T.S. Jayasundara (RU/EG/2021/4582)
 
-**Supervisor:** Ms. Yugani Gamlath
+
