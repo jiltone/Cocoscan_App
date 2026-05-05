@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/backend_service.dart';
 import '../theme/app_theme.dart';
 import 'login_screen.dart';
 
@@ -15,6 +16,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _autoSyncOn      = true;
   bool _locationOn      = true;
   String _language      = 'English';
+  bool _loading         = true;
+  String _name          = 'Kasun Perera';
+  String _email         = 'kasun@cocoscan.lk';
+  String _phone         = '+94 77 123 4567';
+  String _plantation    = 'Kurunegala, Sri Lanka';
+  Map<String, dynamic> _stats = {
+    'totalScans': 47,
+    'diseasesFound': 12,
+    'healthyTrees': 35,
+    'reportScore': 4.8,
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    try {
+      final profile = await BackendService.getProfile();
+      if (!mounted) return;
+      setState(() {
+        _name = profile['name'] as String;
+        _email = profile['email'] as String;
+        _phone = profile['phone'] as String;
+        _plantation = profile['plantation'] as String;
+        _stats = profile['stats'] as Map<String, dynamic>;
+      });
+    } catch (_) {
+      if (!mounted) return;
+    } finally {
+      if (!mounted) return;
+      setState(() => _loading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -78,10 +115,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ],
                             ),
                             const SizedBox(height: 12),
-                            const Text('Kasun Perera', style: TextStyle(
+                            Text(_name, style: const TextStyle(
                               color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800)),
                             const SizedBox(height: 4),
-                            Text('kasun@cocoscan.lk',
+                            Text(_email,
                               style: TextStyle(color: Colors.white.withOpacity(0.75), fontSize: 13)),
                             const SizedBox(height: 6),
                             Container(
@@ -113,52 +150,52 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                   // Stats row
                   Row(children: [
-                    _StatBubble('47', 'Total Scans', AppColors.primary),
+                    _StatBubble(_stats['totalScans'].toString(), 'Total Scans', AppColors.primary),
                     const SizedBox(width: 10),
-                    _StatBubble('12', 'Diseases\nFound', AppColors.confirmed),
+                    _StatBubble(_stats['diseasesFound'].toString(), 'Diseases\nFound', AppColors.confirmed),
                     const SizedBox(width: 10),
-                    _StatBubble('35', 'Healthy\nTrees', AppColors.healthy),
+                    _StatBubble(_stats['healthyTrees'].toString(), 'Healthy\nTrees', AppColors.healthy),
                     const SizedBox(width: 10),
-                    _StatBubble('4.8', 'Report\nScore', const Color(0xFF4527A0)),
+                    _StatBubble(_stats['reportScore'].toString(), 'Report\nScore', const Color(0xFF4527A0)),
                   ]),
                   const SizedBox(height: 24),
 
                   // Account section
-                  _SectionTitle('Account'),
+                  const _SectionTitle('Account'),
                   const SizedBox(height: 10),
                   _SettingsCard(children: [
                     _ProfileTile(
                       icon: Icons.person_outline_rounded,
                       label: 'Full Name',
-                      value: 'Kasun Perera',
+                      value: _name,
                       onTap: _editProfile,
                     ),
                     _Divider(),
                     _ProfileTile(
                       icon: Icons.email_outlined,
                       label: 'Email',
-                      value: 'kasun@cocoscan.lk',
+                      value: _email,
                       onTap: _editProfile,
                     ),
                     _Divider(),
                     _ProfileTile(
                       icon: Icons.phone_outlined,
                       label: 'Phone',
-                      value: '+94 77 123 4567',
+                      value: _phone,
                       onTap: _editProfile,
                     ),
                     _Divider(),
                     _ProfileTile(
                       icon: Icons.location_city_rounded,
                       label: 'Plantation',
-                      value: 'Kurunegala, Sri Lanka',
+                      value: _plantation,
                       onTap: _editProfile,
                     ),
                   ]),
                   const SizedBox(height: 20),
 
                   // Preferences
-                  _SectionTitle('Preferences'),
+                  const _SectionTitle('Preferences'),
                   const SizedBox(height: 10),
                   _SettingsCard(children: [
                     _SwitchTile(
@@ -196,7 +233,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(height: 20),
 
                   // App settings
-                  _SectionTitle('App'),
+                  const _SectionTitle('App'),
                   const SizedBox(height: 10),
                   _SettingsCard(children: [
                     _NavigationTile(
@@ -223,7 +260,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(height: 20),
 
                   // Support
-                  _SectionTitle('Support'),
+                  const _SectionTitle('Support'),
                   const SizedBox(height: 10),
                   _SettingsCard(children: [
                     _NavigationTile(
@@ -269,7 +306,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Center(
+                  const Center(
                     child: Text('CocoScan v2.0.0 · Made with ❤️ in Sri Lanka',
                         style: AppTextStyles.caption),
                   ),
@@ -336,31 +373,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
       const SnackBar(content: Text('Feedback form opening...')));
   }
 
-  void _logout() {
-    showDialog(
+  void _logout() async {
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Sign Out', style: AppTextStyles.heading3),
         content: const Text('Are you sure you want to sign out?',
             style: AppTextStyles.body),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context),
+          TextButton(onPressed: () => Navigator.pop(context, false),
               child: const Text('Cancel')),
           ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (_) => const LoginScreen()),
-                (_) => false,
-              );
-            },
+            onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.confirmed),
             child: const Text('Sign Out'),
           ),
         ],
       ),
     );
+
+    if (confirmed == true) {
+      try {
+        await BackendService.logout();
+      } catch (error) {
+        // Even if logout fails, we still want to go back to login
+        debugPrint('Logout error: $error');
+      }
+
+      if (!mounted) return;
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        (_) => false,
+      );
+    }
   }
 }
 

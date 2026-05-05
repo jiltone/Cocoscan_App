@@ -90,7 +90,7 @@ class TreatmentScreen extends StatelessWidget {
                       children: [
                         const Text('Treating: Leaf Spot', style: AppTextStyles.heading3),
                         const SizedBox(height: 2),
-                        Text('Tree #A-14  ·  Confidence: 92%', style: AppTextStyles.body),
+                        const Text('Tree #A-14  ·  Confidence: 92%', style: AppTextStyles.body),
                         const SizedBox(height: 6),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -134,9 +134,9 @@ class TreatmentScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
 
-            Text('Treatment Steps', style: AppTextStyles.heading2),
+            const Text('Treatment Steps', style: AppTextStyles.heading2),
             const SizedBox(height: 4),
-            Text('Follow these steps in order for best results', style: AppTextStyles.body),
+            const Text('Follow these steps in order for best results', style: AppTextStyles.body),
             const SizedBox(height: 16),
 
             // Steps
@@ -149,15 +149,15 @@ class TreatmentScreen extends StatelessWidget {
             const SizedBox(height: 24),
 
             // Products section
-            Text('Recommended Products', style: AppTextStyles.heading3),
+            const Text('Recommended Products', style: AppTextStyles.heading3),
             const SizedBox(height: 12),
-            _ProductCard(
+            const _ProductCard(
               name: 'Copper Oxychloride 50% WP',
               dose: '3g per litre of water',
               icon: Icons.sanitizer_rounded,
             ),
             const SizedBox(height: 10),
-            _ProductCard(
+            const _ProductCard(
               name: 'Mancozeb 75% WP',
               dose: '2.5g per litre of water (alternative)',
               icon: Icons.science_rounded,
@@ -183,11 +183,11 @@ class TreatmentScreen extends StatelessWidget {
                     child: const Icon(Icons.support_agent_rounded, color: Colors.white, size: 24),
                   ),
                   const SizedBox(width: 14),
-                  Expanded(
+                  const Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Need Expert Help?', style: AppTextStyles.heading3),
+                        Text('Need Expert Help?', style: AppTextStyles.heading3),
                         Text('Contact your agricultural officer', style: AppTextStyles.body),
                       ],
                     ),
@@ -222,7 +222,7 @@ class TreatmentScreen extends StatelessWidget {
             children: [
               Container(
                 width: 40, height: 40,
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   color: AppColors.primary, shape: BoxShape.circle),
                 child: Center(
                   child: Text('${t.step}', style: const TextStyle(

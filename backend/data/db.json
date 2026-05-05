@@ -1,0 +1,64 @@
+{
+  "users": [
+    {
+      "id": "user-1",
+      "name": "Kasun Perera",
+      "email": "farmer@cocoscan.lk",
+      "password": "demo123",
+      "role": "Farmer",
+      "plantation": "Kurunegala, Sri Lanka",
+      "phone": "+94 77 123 4567",
+      "token": "token-farmer-demo",
+      "stats": {
+        "totalScans": 47,
+        "diseasesFound": 12,
+        "healthyTrees": 35,
+        "reportScore": 4.8
+      }
+    },
+    {
+      "id": "user-2",
+      "name": "Nimal Perera",
+      "email": "officer@cocoscan.lk",
+      "password": "demo123",
+      "role": "Agricultural Officer",
+      "plantation": "Galle, Sri Lanka",
+      "phone": "+94 77 987 6543",
+      "token": "token-officer-demo",
+      "stats": {
+        "totalScans": 112,
+        "diseasesFound": 26,
+        "healthyTrees": 86,
+        "reportScore": 4.6
+      }
+    }
+  ],
+  "scans": [
+    {
+      "id": "scan-1",
+      "userId": "user-1",
+      "disease": "Leaf Spot",
+      "tree": "Tree #A-14",
+      "confidence": 0.92,
+      "status": "CONFIRMED",
+      "date": "2026-04-29",
+      "sector": "Sector A",
+      "location": "Sector A — Row 4, Plot 14",
+      "model": "CocoScan AI v2.1 (MobileNet)",
+      "processingTime": "1.4 seconds"
+    },
+    {
+      "id": "scan-2",
+      "userId": "user-1",
+      "disease": "Healthy",
+      "tree": "Tree #C-22",
+      "confidence": 0.96,
+      "status": "HEALTHY",
+      "date": "2026-04-28",
+      "sector": "Sector C",
+      "location": "Sector C — Row 8, Plot 9",
+      "model": "CocoScan AI v2.1 (MobileNet)",
+      "processingTime": "1.3 seconds"
+    }
+  ]
+}

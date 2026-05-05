@@ -13,18 +13,18 @@ class _DroneReportScreenState extends State<DroneReportScreen> with SingleTicker
   bool _processing = false;
 
   final _trees = [
-    _TreeData('A-01', 'Healthy',         'HEALTHY',      96, const Color(0xFF2E7D32)),
-    _TreeData('A-02', 'Leaf Spot',        'CONFIRMED',    92, const Color(0xFFD32F2F)),
-    _TreeData('A-03', 'Lethal Yellowing', 'CONFIRMED',    88, const Color(0xFFD32F2F)),
-    _TreeData('A-04', 'Healthy',          'HEALTHY',      94, const Color(0xFF2E7D32)),
-    _TreeData('A-05', 'Bud Rot',          'UNCERTAIN',    74, const Color(0xFFF57C00)),
-    _TreeData('A-06', 'Healthy',          'HEALTHY',      97, const Color(0xFF2E7D32)),
-    _TreeData('A-07', 'Leaf Spot',        'CONFIRMED',    89, const Color(0xFFD32F2F)),
-    _TreeData('A-08', 'Healthy',          'HEALTHY',      91, const Color(0xFF2E7D32)),
-    _TreeData('A-09', 'Stem Bleeding',    'UNCERTAIN',    68, const Color(0xFFF57C00)),
-    _TreeData('A-10', 'Healthy',          'HEALTHY',      95, const Color(0xFF2E7D32)),
-    _TreeData('A-11', 'Healthy',          'HEALTHY',      98, const Color(0xFF2E7D32)),
-    _TreeData('A-12', 'Leaf Spot',        'CONFIRMED',    91, const Color(0xFFD32F2F)),
+    const _TreeData('A-01', 'Healthy',         'HEALTHY',      96, Color(0xFF2E7D32)),
+    const _TreeData('A-02', 'Leaf Spot',        'CONFIRMED',    92, Color(0xFFD32F2F)),
+    const _TreeData('A-03', 'Lethal Yellowing', 'CONFIRMED',    88, Color(0xFFD32F2F)),
+    const _TreeData('A-04', 'Healthy',          'HEALTHY',      94, Color(0xFF2E7D32)),
+    const _TreeData('A-05', 'Bud Rot',          'UNCERTAIN',    74, Color(0xFFF57C00)),
+    const _TreeData('A-06', 'Healthy',          'HEALTHY',      97, Color(0xFF2E7D32)),
+    const _TreeData('A-07', 'Leaf Spot',        'CONFIRMED',    89, Color(0xFFD32F2F)),
+    const _TreeData('A-08', 'Healthy',          'HEALTHY',      91, Color(0xFF2E7D32)),
+    const _TreeData('A-09', 'Stem Bleeding',    'UNCERTAIN',    68, Color(0xFFF57C00)),
+    const _TreeData('A-10', 'Healthy',          'HEALTHY',      95, Color(0xFF2E7D32)),
+    const _TreeData('A-11', 'Healthy',          'HEALTHY',      98, Color(0xFF2E7D32)),
+    const _TreeData('A-12', 'Leaf Spot',        'CONFIRMED',    91, Color(0xFFD32F2F)),
   ];
 
   @override
@@ -133,25 +133,25 @@ class _DroneReportScreenState extends State<DroneReportScreen> with SingleTicker
 
   Widget _buildMapView() {
     // Grid representing the plantation
-    final cols = 4;
+    const cols = 4;
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Plantation Map — Kurunegala Block A', style: AppTextStyles.heading3),
+          const Text('Plantation Map — Kurunegala Block A', style: AppTextStyles.heading3),
           const SizedBox(height: 4),
-          Text('12 trees scanned  ·  Tap a tree for details', style: AppTextStyles.body),
+          const Text('12 trees scanned  ·  Tap a tree for details', style: AppTextStyles.body),
           const SizedBox(height: 14),
 
           // Legend
-          Row(
+          const Row(
             children: [
-              _MapLegend(color: const Color(0xFF2E7D32), label: 'Healthy'),
-              const SizedBox(width: 12),
-              _MapLegend(color: const Color(0xFFD32F2F), label: 'Diseased'),
-              const SizedBox(width: 12),
-              _MapLegend(color: const Color(0xFFF57C00), label: 'Uncertain'),
+              _MapLegend(color: Color(0xFF2E7D32), label: 'Healthy'),
+              SizedBox(width: 12),
+              _MapLegend(color: Color(0xFFD32F2F), label: 'Diseased'),
+              SizedBox(width: 12),
+              _MapLegend(color: Color(0xFFF57C00), label: 'Uncertain'),
             ],
           ),
           const SizedBox(height: 16),
@@ -279,7 +279,7 @@ class _DroneReportScreenState extends State<DroneReportScreen> with SingleTicker
           const SizedBox(height: 20),
 
           // Disease breakdown
-          Text('Disease Breakdown', style: AppTextStyles.heading3),
+          const Text('Disease Breakdown', style: AppTextStyles.heading3),
           const SizedBox(height: 12),
           _DiseaseRow(disease: 'Leaf Spot',         count: 3, total: total, color: const Color(0xFFD32F2F)),
           const SizedBox(height: 8),
@@ -291,7 +291,7 @@ class _DroneReportScreenState extends State<DroneReportScreen> with SingleTicker
           const SizedBox(height: 24),
 
           // Urgent action
-          Text('Urgent Actions Required', style: AppTextStyles.heading3),
+          const Text('Urgent Actions Required', style: AppTextStyles.heading3),
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(16),
@@ -300,12 +300,12 @@ class _DroneReportScreenState extends State<DroneReportScreen> with SingleTicker
               borderRadius: BorderRadius.circular(14),
               border: Border.all(color: const Color(0xFFD32F2F).withOpacity(0.2)),
             ),
-            child: Column(
+            child: const Column(
               children: [
                 _UrgentRow(tree: 'Tree A-03', action: 'Lethal Yellowing — Remove immediately'),
-                const Divider(height: 16),
+                Divider(height: 16),
                 _UrgentRow(tree: 'Tree A-02', action: 'Leaf Spot — Apply fungicide within 24hrs'),
-                const Divider(height: 16),
+                Divider(height: 16),
                 _UrgentRow(tree: 'Tree A-07', action: 'Leaf Spot — Apply fungicide within 24hrs'),
               ],
             ),

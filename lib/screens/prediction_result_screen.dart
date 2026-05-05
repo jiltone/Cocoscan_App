@@ -88,9 +88,9 @@ class _PredictionResultScreenState extends State<PredictionResultScreen>
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(color: _statusColor.withOpacity(0.3)),
                     ),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    child: const Row(mainAxisSize: MainAxisSize.min, children: [
                       Icon(Icons.warning_amber_rounded, color: _statusColor, size: 14),
-                      const SizedBox(width: 6),
+                      SizedBox(width: 6),
                       Text(_status, style: TextStyle(
                         color: _statusColor, fontSize: 12, fontWeight: FontWeight.w800,
                         letterSpacing: 0.8)),
@@ -102,9 +102,9 @@ class _PredictionResultScreenState extends State<PredictionResultScreen>
                   Text(_disease, style: AppTextStyles.heading1.copyWith(
                       fontSize: 34, color: _statusColor)),
                   const SizedBox(height: 4),
-                  Text(_treeId, style: AppTextStyles.body),
+                  const Text(_treeId, style: AppTextStyles.body),
                   const SizedBox(height: 8),
-                  Text('Scanned just now', style: AppTextStyles.caption),
+                  const Text('Scanned just now', style: AppTextStyles.caption),
                   const SizedBox(height: 22),
 
                   // Animated confidence ring
@@ -175,11 +175,11 @@ class _PredictionResultScreenState extends State<PredictionResultScreen>
                       style: AppTextStyles.body,
                     ),
                     const SizedBox(height: 12),
-                    _InfoChip(label: 'Fungal Disease', icon: Icons.science_rounded),
+                    const _InfoChip(label: 'Fungal Disease', icon: Icons.science_rounded),
                     const SizedBox(height: 6),
-                    _InfoChip(label: 'Highly Contagious', icon: Icons.warning_rounded),
+                    const _InfoChip(label: 'Highly Contagious', icon: Icons.warning_rounded),
                     const SizedBox(height: 6),
-                    _InfoChip(label: 'Treatable with Fungicide',
+                    const _InfoChip(label: 'Treatable with Fungicide',
                         icon: Icons.check_circle_rounded),
                   ],
                 ],
@@ -188,7 +188,7 @@ class _PredictionResultScreenState extends State<PredictionResultScreen>
             const SizedBox(height: 20),
 
             // ── Confidence breakdown ──────────────────────────────
-            Text('Confidence Breakdown', style: AppTextStyles.heading3),
+            const Text('Confidence Breakdown', style: AppTextStyles.heading3),
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(18),
@@ -208,7 +208,7 @@ class _PredictionResultScreenState extends State<PredictionResultScreen>
             const SizedBox(height: 20),
 
             // ── Captured image placeholder ────────────────────────
-            Text('Captured Image', style: AppTextStyles.heading3),
+            const Text('Captured Image', style: AppTextStyles.heading3),
             const SizedBox(height: 12),
             Container(
               height: 190,
@@ -238,17 +238,17 @@ class _PredictionResultScreenState extends State<PredictionResultScreen>
             Container(
               padding: const EdgeInsets.all(16),
               decoration: AppDecorations.card,
-              child: Column(
+              child: const Column(
                 children: [
                   _MetaRow(Icons.location_on_outlined, 'Location',
                       'Sector A — Row 4, Plot 14'),
-                  const Divider(height: 20),
+                  Divider(height: 20),
                   _MetaRow(Icons.calendar_today_rounded, 'Date & Time',
                       'Apr 29, 2026 · 01:50 AM'),
-                  const Divider(height: 20),
+                  Divider(height: 20),
                   _MetaRow(Icons.device_hub_rounded, 'Model',
                       'CocoScan AI v2.1 (MobileNet)'),
-                  const Divider(height: 20),
+                  Divider(height: 20),
                   _MetaRow(Icons.speed_rounded, 'Processing Time', '1.4 seconds'),
                 ],
               ),

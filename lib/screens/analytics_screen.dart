@@ -121,8 +121,8 @@ class _OverviewTab extends StatelessWidget {
           _KpiCard('Healthy Trees', '29', '+9 this $period',
               Icons.check_circle_outline_rounded, AppColors.healthy),
           const SizedBox(width: 12),
-          _KpiCard('Avg Confidence', '84%', '+2% accuracy',
-              Icons.psychology_rounded, const Color(0xFF4527A0)),
+          const _KpiCard('Avg Confidence', '84%', '+2% accuracy',
+              Icons.psychology_rounded, Color(0xFF4527A0)),
         ]),
         const SizedBox(height: 24),
 
@@ -142,16 +142,16 @@ class _OverviewTab extends StatelessWidget {
                       fontWeight: FontWeight.w700, fontSize: 16)),
               const SizedBox(height: 16),
               Row(children: [
-                Expanded(
+                const Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _HealthBar('Sector A', 0.72, Colors.white),
-                      const SizedBox(height: 10),
+                      SizedBox(height: 10),
                       _HealthBar('Sector B', 0.91, Colors.white),
-                      const SizedBox(height: 10),
+                      SizedBox(height: 10),
                       _HealthBar('Sector C', 0.85, Colors.white),
-                      const SizedBox(height: 10),
+                      SizedBox(height: 10),
                       _HealthBar('Sector D', 0.68, Colors.white),
                     ],
                   ),
@@ -170,7 +170,7 @@ class _OverviewTab extends StatelessWidget {
         const SizedBox(height: 24),
 
         // Weekly bar chart (manual)
-        Text('Scans per Day', style: AppTextStyles.heading3),
+        const Text('Scans per Day', style: AppTextStyles.heading3),
         const SizedBox(height: 4),
         Text('This $period', style: AppTextStyles.caption),
         const SizedBox(height: 14),
@@ -201,7 +201,7 @@ class _KpiCard extends StatelessWidget {
           child: Icon(icon, color: color, size: 18),
         ),
         const SizedBox(height: 10),
-        Text(value, style: TextStyle(
+        Text(value, style: const TextStyle(
             fontSize: 24, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
         Text(label, style: AppTextStyles.caption, maxLines: 1,
             overflow: TextOverflow.ellipsis),
@@ -272,13 +272,13 @@ class _BarChart extends StatelessWidget {
                     child: AnimatedContainer(
                       duration: Duration(milliseconds: 400 + i * 80),
                       height: frac * 100,
-                      decoration: BoxDecoration(
+                      decoration: const BoxDecoration(
                         gradient: LinearGradient(
                           colors: [AppColors.primary, AppColors.primaryGlow],
                           begin: Alignment.bottomCenter,
                           end: Alignment.topCenter,
                         ),
-                        borderRadius: const BorderRadius.vertical(
+                        borderRadius: BorderRadius.vertical(
                             top: Radius.circular(6)),
                       ),
                     ),
@@ -297,13 +297,13 @@ class _BarChart extends StatelessWidget {
 
 class _DiseasesTab extends StatelessWidget {
   final _diseases = [
-    _DiseaseAnalysis('Leaf Spot', 19, 0.40, AppColors.confirmed,
+    const _DiseaseAnalysis('Leaf Spot', 19, 0.40, AppColors.confirmed,
         'Pestalotiopsis palmarum'),
-    _DiseaseAnalysis('Lethal Yellowing', 13, 0.27, AppColors.uncertain,
+    const _DiseaseAnalysis('Lethal Yellowing', 13, 0.27, AppColors.uncertain,
         'Phytoplasma disease'),
-    _DiseaseAnalysis('Bud Rot', 9, 0.19, const Color(0xFF7B1FA2),
+    const _DiseaseAnalysis('Bud Rot', 9, 0.19, Color(0xFF7B1FA2),
         'Phytophthora palmivora'),
-    _DiseaseAnalysis('Stem Bleeding', 7, 0.15, AppColors.secondary,
+    const _DiseaseAnalysis('Stem Bleeding', 7, 0.15, AppColors.secondary,
         'Thielaviopsis paradoxa'),
   ];
 
@@ -398,7 +398,7 @@ class _TrendsTab extends StatelessWidget {
         const SizedBox(height: 24),
         const Text('Key Insights', style: AppTextStyles.heading3),
         const SizedBox(height: 14),
-        _InsightCard(
+        const _InsightCard(
           icon: Icons.trending_up_rounded,
           title: 'Leaf Spot increasing',
           body: 'Detected +42% more Leaf Spot cases compared to last month, '
@@ -406,14 +406,14 @@ class _TrendsTab extends StatelessWidget {
           color: AppColors.confirmed,
         ),
         const SizedBox(height: 12),
-        _InsightCard(
+        const _InsightCard(
           icon: Icons.trending_down_rounded,
           title: 'Bud Rot decreasing',
           body: 'Bud Rot cases dropped by 18% following treatment campaigns in Sector D.',
           color: AppColors.healthy,
         ),
         const SizedBox(height: 12),
-        _InsightCard(
+        const _InsightCard(
           icon: Icons.lightbulb_outline_rounded,
           title: 'Recommendation',
           body: 'Increase scanning frequency in Sector A & B — early detection is '

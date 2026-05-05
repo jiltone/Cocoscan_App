@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/backend_service.dart';
 import '../theme/app_theme.dart';
 import 'prediction_result_screen.dart';
 
@@ -12,35 +13,51 @@ class _HistoryScreenState extends State<HistoryScreen>
     with SingleTickerProviderStateMixin {
   String _filter = 'All';
   String _search = '';
+  bool _loading = true;
   late TabController _tab;
 
-  final _allScans = [
-    _ScanItem('Leaf Spot', 'Tree #A-14', 0.92, 'CONFIRMED',
-        'Apr 29, 2026', AppColors.confirmed, 'Sector A'),
-    _ScanItem('Lethal Yellowing', 'Tree #B-07', 0.71, 'UNCERTAIN',
-        'Apr 28, 2026', AppColors.uncertain, 'Sector B'),
-    _ScanItem('Healthy', 'Tree #C-22', 0.96, 'HEALTHY',
-        'Apr 28, 2026', AppColors.healthy, 'Sector C'),
-    _ScanItem('Bud Rot', 'Tree #D-03', 0.88, 'CONFIRMED',
-        'Apr 27, 2026', AppColors.confirmed, 'Sector D'),
-    _ScanItem('Stem Bleeding', 'Tree #A-31', 0.65, 'UNCERTAIN',
-        'Apr 26, 2026', AppColors.uncertain, 'Sector A'),
-    _ScanItem('Healthy', 'Tree #B-11', 0.98, 'HEALTHY',
-        'Apr 25, 2026', AppColors.healthy, 'Sector B'),
-    _ScanItem('Leaf Spot', 'Tree #C-05', 0.87, 'CONFIRMED',
-        'Apr 24, 2026', AppColors.confirmed, 'Sector C'),
-    _ScanItem('Healthy', 'Tree #D-18', 0.95, 'HEALTHY',
-        'Apr 23, 2026', AppColors.healthy, 'Sector D'),
-  ];
+  List<_ScanItem> _allScans = [];
 
   @override
   void initState() {
     super.initState();
     _tab = TabController(length: 3, vsync: this);
+    _loadScans();
   }
 
   @override
   void dispose() { _tab.dispose(); super.dispose(); }
+
+  Future<void> _loadScans() async {
+    setState(() => _loading = true);
+    try {
+      final scans = await BackendService.getScans();
+      setState(() {
+        _allScans = scans.map((dynamic item) {
+          return _ScanItem(
+            item['disease'] as String,
+            item['tree'] as String,
+            (item['confidence'] as num).toDouble(),
+            item['status'] as String,
+            item['date'] as String,
+            _statusColorFor(item['status'] as String),
+            item['sector'] as String,
+          );
+        }).toList();
+      });
+    } catch (_) {
+      if (!mounted) return;
+    } finally {
+      if (!mounted) return;
+      setState(() => _loading = false);
+    }
+  }
+
+  Color _statusColorFor(String status) {
+    if (status == 'CONFIRMED') return AppColors.confirmed;
+    if (status == 'UNCERTAIN') return AppColors.uncertain;
+    return AppColors.healthy;
+  }
 
   List<_ScanItem> get _filtered {
     var list = _allScans;
@@ -147,20 +164,26 @@ class _HistoryScreenState extends State<HistoryScreen>
               controller: _tab,
               children: [
                 // List view
-                _filtered.isEmpty
-                    ? _EmptyState()
-                    : ListView.separated(
-                        physics: const BouncingScrollPhysics(),
-                        padding: const EdgeInsets.all(16),
-                        itemCount: _filtered.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 10),
-                        itemBuilder: (_, i) => _ScanCard(
-                          item: _filtered[i],
-                          onTap: () => Navigator.push(context,
-                              MaterialPageRoute(
-                                  builder: (_) => const PredictionResultScreen())),
-                        ),
-                      ),
+                if (_loading)
+                  const Center(child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: CircularProgressIndicator(),
+                  ))
+                else if (_filtered.isEmpty)
+                  _EmptyState()
+                else
+                  ListView.separated(
+                    physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.all(16),
+                    itemCount: _filtered.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 10),
+                    itemBuilder: (_, i) => _ScanCard(
+                      item: _filtered[i],
+                      onTap: () => Navigator.push(context,
+                          MaterialPageRoute(
+                              builder: (_) => const PredictionResultScreen())),
+                    ),
+                  ),
 
                 // Timeline
                 _TimelineView(scans: _filtered),
@@ -304,7 +327,7 @@ class _TimelineView extends StatelessWidget {
                     Text(s.date, style: AppTextStyles.caption),
                     const SizedBox(height: 6),
                     Row(children: [
-                      Text('Confidence: ', style: AppTextStyles.caption),
+                      const Text('Confidence: ', style: AppTextStyles.caption),
                       Text('${(s.confidence * 100).toInt()}%', style: TextStyle(
                           fontSize: 12, fontWeight: FontWeight.w700,
                           color: s.statusColor)),
@@ -322,13 +345,13 @@ class _TimelineView extends StatelessWidget {
 
 class _EmptyState extends StatelessWidget {
   @override
-  Widget build(BuildContext context) => Center(
+  Widget build(BuildContext context) => const Center(
     child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
       Icon(Icons.history_rounded, size: 64, color: AppColors.divider),
-      const SizedBox(height: 16),
-      const Text('No scans found', style: AppTextStyles.heading3),
-      const SizedBox(height: 8),
-      const Text('Try adjusting your filters',
+      SizedBox(height: 16),
+      Text('No scans found', style: AppTextStyles.heading3),
+      SizedBox(height: 8),
+      Text('Try adjusting your filters',
           style: AppTextStyles.body, textAlign: TextAlign.center),
     ]),
   );

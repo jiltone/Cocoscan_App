@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import 'onboarding_screen.dart';
@@ -17,6 +19,8 @@ class _SplashScreenState extends State<SplashScreen>
   late Animation<double> _fade;
   late Animation<double> _slideY;
 
+  late Timer _delayTimer;
+
   @override
   void initState() {
     super.initState();
@@ -29,7 +33,7 @@ class _SplashScreenState extends State<SplashScreen>
         CurvedAnimation(parent: _ctrl, curve: const Interval(0.3, 0.8, curve: Curves.easeOut)));
     _ctrl.forward();
 
-    Future.delayed(const Duration(milliseconds: 2600), _navigate);
+    _delayTimer = Timer(const Duration(milliseconds: 2600), _navigate);
   }
 
   void _navigate() async {
@@ -50,6 +54,7 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   void dispose() {
+    _delayTimer.cancel();
     _ctrl.dispose();
     super.dispose();
   }

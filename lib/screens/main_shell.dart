@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../theme/app_theme.dart';
 import 'home_screen.dart';
 import 'camera_screen.dart';
 import 'drone_report_screen.dart';

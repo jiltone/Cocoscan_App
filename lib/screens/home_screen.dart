@@ -21,13 +21,13 @@ class _HomeScreenState extends State<HomeScreen>
 
   // Recent alerts mock data
   final List<_AlertData> _alerts = [
-    _AlertData('Leaf Spot', 'Tree #A-14', '92%', 'CONFIRMED',
+    const _AlertData('Leaf Spot', 'Tree #A-14', '92%', 'CONFIRMED',
         '2 hours ago', AppColors.confirmed, Icons.warning_amber_rounded),
-    _AlertData('Lethal Yellowing', 'Tree #B-07', '71%', 'UNCERTAIN',
+    const _AlertData('Lethal Yellowing', 'Tree #B-07', '71%', 'UNCERTAIN',
         '5 hours ago', AppColors.uncertain, Icons.help_outline_rounded),
-    _AlertData('Healthy', 'Tree #C-22', '96%', 'HEALTHY',
+    const _AlertData('Healthy', 'Tree #C-22', '96%', 'HEALTHY',
         'Yesterday', AppColors.healthy, Icons.check_circle_outline_rounded),
-    _AlertData('Bud Rot', 'Tree #D-03', '88%', 'CONFIRMED',
+    const _AlertData('Bud Rot', 'Tree #D-03', '88%', 'CONFIRMED',
         '2 days ago', AppColors.confirmed, Icons.warning_amber_rounded),
   ];
 
@@ -182,15 +182,15 @@ class _HomeScreenState extends State<HomeScreen>
                   children: [
 
                     // ── Stats row ─────────────────────────────────
-                    Row(children: [
+                    const Row(children: [
                       _StatCard(label: 'Scans Today', value: '12',
                           icon: Icons.camera_alt_rounded, color: AppColors.primary,
                           trend: '+3'),
-                      const SizedBox(width: 10),
+                      SizedBox(width: 10),
                       _StatCard(label: 'Diseases Found', value: '3',
                           icon: Icons.warning_amber_rounded, color: AppColors.confirmed,
                           trend: '+1'),
-                      const SizedBox(width: 10),
+                      SizedBox(width: 10),
                       _StatCard(label: 'Tree Health', value: '87%',
                           icon: Icons.check_circle_outline_rounded,
                           color: AppColors.healthy, trend: '+2%'),
@@ -202,7 +202,7 @@ class _HomeScreenState extends State<HomeScreen>
                     const SizedBox(height: 24),
 
                     // ── Quick Actions ─────────────────────────────
-                    _SectionHeader(title: 'Quick Actions', onSeeAll: null),
+                    const _SectionHeader(title: 'Quick Actions', onSeeAll: null),
                     const SizedBox(height: 14),
                     GridView(
                       shrinkWrap: true,
@@ -380,8 +380,8 @@ class _HealthBanner extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Plantation Health Report',
-                style: const TextStyle(color: Colors.white,
+              const Text('Plantation Health Report',
+                style: TextStyle(color: Colors.white,
                     fontWeight: FontWeight.w700, fontSize: 15)),
               const SizedBox(height: 4),
               Text('245 trees monitored this week',
@@ -521,7 +521,7 @@ class _ActionCard extends StatelessWidget {
             child: Icon(icon, color: Colors.white, size: 20),
           ),
           const Spacer(),
-          Text(label, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700,
+          Text(label, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700,
               color: AppColors.textPrimary)),
           Text(subtitle, style: AppTextStyles.caption),
         ],

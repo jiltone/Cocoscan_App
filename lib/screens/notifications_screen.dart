@@ -82,11 +82,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         ],
       ),
       body: _notifications.isEmpty
-          ? Center(
+          ? const Center(
               child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                 Icon(Icons.notifications_off_outlined, size: 64, color: AppColors.divider),
-                const SizedBox(height: 16),
-                const Text('No notifications', style: AppTextStyles.heading3),
+                SizedBox(height: 16),
+                Text('No notifications', style: AppTextStyles.heading3),
               ]),
             )
           : ListView.separated(

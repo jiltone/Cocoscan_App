@@ -18,50 +18,50 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   late Animation<double> _slideAnim;
 
   final List<_OnboardPage> _pages = [
-    _OnboardPage(
+    const _OnboardPage(
       icon: Icons.eco_rounded,
       title: 'Early Disease\nDetection',
       subtitle: 'Detect coconut leaf diseases early using advanced AI — before they spread and damage your harvest.',
-      gradient: const LinearGradient(
+      gradient: LinearGradient(
           colors: [Color(0xFF1B5E20), Color(0xFF43A047)],
           begin: Alignment.topLeft, end: Alignment.bottomRight),
-      bgColor: const Color(0xFF1B5E20),
+      bgColor: Color(0xFF1B5E20),
     ),
-    _OnboardPage(
+    const _OnboardPage(
       icon: Icons.airplanemode_active_rounded,
       title: 'Drone\nInspection',
       subtitle: 'Fly a drone over your plantation and let the system automatically analyse every tree from above.',
-      gradient: const LinearGradient(
+      gradient: LinearGradient(
           colors: [Color(0xFF1565C0), Color(0xFF1976D2)],
           begin: Alignment.topLeft, end: Alignment.bottomRight),
-      bgColor: const Color(0xFF1565C0),
+      bgColor: Color(0xFF1565C0),
     ),
-    _OnboardPage(
+    const _OnboardPage(
       icon: Icons.psychology_rounded,
       title: 'Explainable\nAI (XAI)',
       subtitle: 'See exactly which part of the leaf triggered the diagnosis — fully transparent, fully trustworthy.',
-      gradient: const LinearGradient(
+      gradient: LinearGradient(
           colors: [Color(0xFF00695C), Color(0xFF00BFA5)],
           begin: Alignment.topLeft, end: Alignment.bottomRight),
-      bgColor: const Color(0xFF00695C),
+      bgColor: Color(0xFF00695C),
     ),
-    _OnboardPage(
+    const _OnboardPage(
       icon: Icons.healing_rounded,
       title: 'Smart Treatment\nGuide',
       subtitle: 'Get instant, disease-specific treatment recommendations your farmers can act on immediately.',
-      gradient: const LinearGradient(
+      gradient: LinearGradient(
           colors: [Color(0xFF4527A0), Color(0xFF7B1FA2)],
           begin: Alignment.topLeft, end: Alignment.bottomRight),
-      bgColor: const Color(0xFF4527A0),
+      bgColor: Color(0xFF4527A0),
     ),
-    _OnboardPage(
+    const _OnboardPage(
       icon: Icons.bar_chart_rounded,
       title: 'Analytics &\nInsights',
       subtitle: 'Track disease trends, monitor plantation health, and export detailed PDF reports for your records.',
-      gradient: const LinearGradient(
+      gradient: LinearGradient(
           colors: [Color(0xFFBF360C), Color(0xFFE64A19)],
           begin: Alignment.topLeft, end: Alignment.bottomRight),
-      bgColor: const Color(0xFFBF360C),
+      bgColor: Color(0xFFBF360C),
     ),
   ];
 
