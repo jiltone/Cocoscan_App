@@ -54,12 +54,13 @@ class DefaultFirebaseOptions {
     messagingSenderId: '334824669425',
     projectId: 'cocoscan-app-9bccd',
     storageBucket: 'cocoscan-app-9bccd.firebasestorage.app',
+    iosClientId: '334824669425-cfpo484raa3i05ko3b6v3sn2knal6jh6.apps.googleusercontent.com',
     iosBundleId: 'com.example.cocoscan',
   );
 
   static const FirebaseOptions web = FirebaseOptions(
     apiKey: 'AIzaSyBB-MkY7np6baO9NXlmIhfl0qnS7FRyuBQ',
-    appId: '1:334824669425:web:f845093ff2748eaab5a950',
+    appId: '1:334824669425:web:8b8ec8debe28763ab5a950',
     messagingSenderId: '334824669425',
     projectId: 'cocoscan-app-9bccd',
     authDomain: 'cocoscan-app-9bccd.firebaseapp.com',
@@ -72,6 +73,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '334824669425',
     projectId: 'cocoscan-app-9bccd',
     storageBucket: 'cocoscan-app-9bccd.firebasestorage.app',
+    iosClientId: '334824669425-cfpo484raa3i05ko3b6v3sn2knal6jh6.apps.googleusercontent.com',
     iosBundleId: 'com.example.cocoscan',
   );
 

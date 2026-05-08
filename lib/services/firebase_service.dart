@@ -1,7 +1,5 @@
-import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -40,15 +38,37 @@ class FirebaseService {
       );
 
       final user = userCredential.user;
-      if (user == null) throw Exception('Login failed.');
+      if (user == null) throw Exception('Login failed: user is null.');
 
       await saveCurrentUserId(user.uid);
 
       // Get user profile from Firestore
-      final userDoc = await _firestore.collection('users').doc(user.uid).get();
-      if (!userDoc.exists) throw Exception('User profile not found.');
+      final userRef = _firestore.collection('users').doc(user.uid);
+      final userDoc = await userRef.get();
 
-      final userData = userDoc.data()!;
+      Map<String, dynamic> userData;
+
+      if (!userDoc.exists) {
+        // Auto-create a minimal profile so the app doesn't crash
+        userData = {
+          'name': user.displayName ?? email.split('@').first,
+          'email': email,
+          'role': 'Farmer',
+          'plantation': '',
+          'phone': '',
+          'createdAt': FieldValue.serverTimestamp(),
+          'stats': {
+            'totalScans': 0,
+            'diseasesFound': 0,
+            'healthyTrees': 0,
+            'reportScore': 0.0,
+          },
+        };
+        await userRef.set(userData);
+      } else {
+        userData = userDoc.data()!;
+      }
+
       return {
         'user': {
           'id': user.uid,
@@ -65,6 +85,17 @@ class FirebaseService {
           },
         }
       };
+    } on FirebaseAuthException catch (e) {
+      // Give friendly messages for common auth errors
+      final msg = switch (e.code) {
+        'user-not-found'   => 'No account found for this email.',
+        'wrong-password'   => 'Incorrect password. Please try again.',
+        'invalid-email'    => 'The email address is not valid.',
+        'user-disabled'    => 'This account has been disabled.',
+        'too-many-requests'=> 'Too many attempts. Please try again later.',
+        _                  => e.message ?? e.code,
+      };
+      throw Exception('Login failed: $msg');
     } catch (e) {
       throw Exception('Login failed: ${e.toString()}');
     }

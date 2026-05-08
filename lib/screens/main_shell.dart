@@ -4,6 +4,7 @@ import 'camera_screen.dart';
 import 'drone_report_screen.dart';
 import 'history_screen.dart';
 import 'profile_screen.dart';
+import '../services/firebase_service.dart';
 
 class MainShell extends StatefulWidget {
   final String role;
@@ -14,20 +15,28 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   int _selectedIndex = 0;
-
-  late final List<Widget> _pages;
+  String _userName = '';
 
   @override
   void initState() {
     super.initState();
-    _pages = [
-      HomeScreen(role: widget.role, onTabChange: _changeTab),
-      const CameraScreen(),
-      const DroneReportScreen(),
-      const HistoryScreen(),
-      ProfileScreen(role: widget.role),
-    ];
+    _loadUserName();
   }
+
+  Future<void> _loadUserName() async {
+    try {
+      final profile = await FirebaseService.getProfile();
+      if (mounted) setState(() => _userName = profile['name'] ?? '');
+    } catch (_) {}
+  }
+
+  List<Widget> get _pages => [
+    HomeScreen(role: widget.role, userName: _userName, onTabChange: _changeTab),
+    CameraScreen(onBack: () => _changeTab(0)),
+    const DroneReportScreen(),
+    const HistoryScreen(),
+    ProfileScreen(role: widget.role),
+  ];
 
   void _changeTab(int index) {
     setState(() => _selectedIndex = index);

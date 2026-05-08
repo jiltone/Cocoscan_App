@@ -342,7 +342,25 @@ class _LoginScreenState extends State<LoginScreen>
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.error_outline_rounded, color: Colors.white, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  error.toString().replaceFirst('Exception: ', ''),
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: const Color(0xFF81C784), // light green
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          margin: const EdgeInsets.all(16),
+          duration: const Duration(seconds: 4),
+        ),
       );
     } finally {
       if (!mounted) return;
@@ -458,7 +476,7 @@ class _RegistrationDialogState extends State<_RegistrationDialog> {
                   children: [
                     Container(
                       width: 40, height: 40,
-                      decoration: BoxDecoration(
+                      decoration: const BoxDecoration(
                         gradient: AppColors.primaryGradient,
                         shape: BoxShape.circle,
                       ),
@@ -653,12 +671,44 @@ class _RegistrationDialogState extends State<_RegistrationDialog> {
           MaterialPageRoute(builder: (_) => MainShell(role: result['user']['role'] as String)));
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Account created successfully!')),
+        SnackBar(
+          content: const Row(
+            children: [
+              Icon(Icons.check_circle_outline_rounded, color: Colors.white, size: 20),
+              SizedBox(width: 10),
+              Text('Account created successfully!',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+            ],
+          ),
+          backgroundColor: const Color(0xFF66BB6A), // success green
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          margin: const EdgeInsets.all(16),
+          duration: const Duration(seconds: 3),
+        ),
       );
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.error_outline_rounded, color: Colors.white, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  error.toString().replaceFirst('Exception: ', ''),
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: const Color(0xFF81C784), // light green
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          margin: const EdgeInsets.all(16),
+          duration: const Duration(seconds: 4),
+        ),
       );
     } finally {
       if (!mounted) return;

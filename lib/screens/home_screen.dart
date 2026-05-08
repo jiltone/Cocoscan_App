@@ -1,15 +1,13 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
-import 'camera_screen.dart';
-import 'drone_report_screen.dart';
-import 'history_screen.dart';
 import 'analytics_screen.dart';
 import 'notifications_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final String role;
+  final String userName;
   final void Function(int)? onTabChange;
-  const HomeScreen({super.key, required this.role, this.onTabChange});
+  const HomeScreen({super.key, required this.role, this.userName = '', this.onTabChange});
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
@@ -114,9 +112,11 @@ class _HomeScreenState extends State<HomeScreen>
                                       Text(_greeting(), style: TextStyle(
                                         color: Colors.white.withOpacity(0.8),
                                         fontSize: 13)),
-                                      const Text('Kasun Perera', style: TextStyle(
-                                        color: Colors.white, fontSize: 22,
-                                        fontWeight: FontWeight.w800, letterSpacing: -0.5)),
+                                      Text(
+                                        widget.userName.isEmpty ? 'Loading...' : widget.userName,
+                                        style: const TextStyle(
+                                          color: Colors.white, fontSize: 22,
+                                          fontWeight: FontWeight.w800, letterSpacing: -0.5)),
                                       const SizedBox(height: 5),
                                       Container(
                                         padding: const EdgeInsets.symmetric(

@@ -1,10 +1,15 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+import '../utils/file_helper.dart';
 import 'xai_screen.dart';
 import 'treatment_screen.dart';
 
 class PredictionResultScreen extends StatefulWidget {
-  const PredictionResultScreen({super.key});
+  final String? imagePath;
+
+  const PredictionResultScreen({super.key, this.imagePath});
+
   @override
   State<PredictionResultScreen> createState() => _PredictionResultScreenState();
 }
@@ -216,21 +221,8 @@ class _PredictionResultScreenState extends State<PredictionResultScreen>
                 gradient: AppColors.darkGradient,
                 borderRadius: BorderRadius.circular(18),
               ),
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.image_rounded, size: 56,
-                        color: Colors.white.withOpacity(0.25)),
-                    const SizedBox(height: 10),
-                    Text('Captured leaf image',
-                        style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 13)),
-                    const SizedBox(height: 4),
-                    Text('Tap to view full resolution',
-                        style: TextStyle(color: Colors.white.withOpacity(0.25), fontSize: 11)),
-                  ],
-                ),
-              ),
+              clipBehavior: Clip.hardEdge,
+              child: _buildCapturedImage(),
             ),
             const SizedBox(height: 24),
 
@@ -292,6 +284,38 @@ class _PredictionResultScreenState extends State<PredictionResultScreen>
             const SizedBox(height: 32),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildCapturedImage() {
+    final hasImage = widget.imagePath != null && widget.imagePath!.isNotEmpty;
+    final imageFile = hasImage && !kIsWeb
+        ? createFile(widget.imagePath!)
+        : null;
+
+    if (imageFile != null) {
+      return Image.file(
+        imageFile,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+      );
+    }
+
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.image_rounded, size: 56,
+              color: Colors.white.withOpacity(0.25)),
+          const SizedBox(height: 10),
+          Text('Captured leaf image',
+              style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 13)),
+          const SizedBox(height: 4),
+          Text('Tap to view full resolution',
+              style: TextStyle(color: Colors.white.withOpacity(0.25), fontSize: 11)),
+        ],
       ),
     );
   }

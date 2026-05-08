@@ -159,7 +159,7 @@ class _DroneReportScreenState extends State<DroneReportScreen> with SingleTicker
           // Tree grid
           Expanded(
             child: GridView.builder(
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: cols,
                 crossAxisSpacing: 10,
                 mainAxisSpacing: 10,
