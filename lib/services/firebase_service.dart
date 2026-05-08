@@ -395,4 +395,72 @@ class FirebaseService {
     }
     return DateTime.now().toString().split(' ')[0];
   }
+
+  // ── Plantations & Trees ────────────────────────────────────────────────
+
+  static Future<String> addPlantation(String name, double lat, double lng) async {
+    final userId = await getCurrentUserId();
+    if (userId == null) throw Exception('Not authenticated.');
+    
+    final docRef = await _firestore.collection('users').doc(userId).collection('plantations').add({
+      'name': name,
+      'latitude': lat,
+      'longitude': lng,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+    return docRef.id;
+  }
+
+  static Future<List<Map<String, dynamic>>> getPlantations() async {
+    final userId = await getCurrentUserId();
+    if (userId == null) throw Exception('Not authenticated.');
+
+    final query = await _firestore.collection('users').doc(userId).collection('plantations').orderBy('createdAt').get();
+    return query.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
+  }
+
+  static Future<String> addTree({
+    required String plantationId,
+    required String treeId,
+    required String disease,
+    required String status,
+    required int confidence,
+    required double lat,
+    required double lng,
+  }) async {
+    final userId = await getCurrentUserId();
+    if (userId == null) throw Exception('Not authenticated.');
+
+    final docRef = await _firestore.collection('users').doc(userId)
+        .collection('plantations').doc(plantationId)
+        .collection('trees').add({
+      'treeId': treeId,
+      'disease': disease,
+      'status': status,
+      'confidence': confidence,
+      'latitude': lat,
+      'longitude': lng,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+    return docRef.id;
+  }
+
+  static Future<List<Map<String, dynamic>>> getTrees(String plantationId) async {
+    final userId = await getCurrentUserId();
+    if (userId == null) throw Exception('Not authenticated.');
+
+    final query = await _firestore.collection('users').doc(userId)
+        .collection('plantations').doc(plantationId)
+        .collection('trees').get();
+    return query.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
+  }
+
+  static Future<void> removeTree(String plantationId, String treeDocId) async {
+    final userId = await getCurrentUserId();
+    if (userId == null) throw Exception('Not authenticated.');
+
+    await _firestore.collection('users').doc(userId)
+        .collection('plantations').doc(plantationId)
+        .collection('trees').doc(treeDocId).delete();
+  }
 }

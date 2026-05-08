@@ -1,7 +1,16 @@
+import 'dart:ui' as ui;
+import 'dart:typed_data';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:geolocator/geolocator.dart';
 import '../theme/app_theme.dart';
+import '../services/yolo_service.dart';
+import '../services/firebase_service.dart';
 import 'prediction_result_screen.dart';
-
+import 'location_selection_screen.dart';
 class DroneReportScreen extends StatefulWidget {
   const DroneReportScreen({super.key});
   @override
@@ -11,26 +20,164 @@ class DroneReportScreen extends StatefulWidget {
 class _DroneReportScreenState extends State<DroneReportScreen> with SingleTickerProviderStateMixin {
   late TabController _tabs;
   bool _processing = false;
+  File? _selectedFile;
+  final YoloService _yoloService = YoloService();
+  GoogleMapController? _mapController;
+  bool _locationPermissionGranted = false;
+  bool _addMode = false;
 
-  final _trees = [
-    const _TreeData('A-01', 'Healthy',         'HEALTHY',      96, Color(0xFF2E7D32)),
-    const _TreeData('A-02', 'Leaf Spot',        'CONFIRMED',    92, Color(0xFFD32F2F)),
-    const _TreeData('A-03', 'Lethal Yellowing', 'CONFIRMED',    88, Color(0xFFD32F2F)),
-    const _TreeData('A-04', 'Healthy',          'HEALTHY',      94, Color(0xFF2E7D32)),
-    const _TreeData('A-05', 'Bud Rot',          'UNCERTAIN',    74, Color(0xFFF57C00)),
-    const _TreeData('A-06', 'Healthy',          'HEALTHY',      97, Color(0xFF2E7D32)),
-    const _TreeData('A-07', 'Leaf Spot',        'CONFIRMED',    89, Color(0xFFD32F2F)),
-    const _TreeData('A-08', 'Healthy',          'HEALTHY',      91, Color(0xFF2E7D32)),
-    const _TreeData('A-09', 'Stem Bleeding',    'UNCERTAIN',    68, Color(0xFFF57C00)),
-    const _TreeData('A-10', 'Healthy',          'HEALTHY',      95, Color(0xFF2E7D32)),
-    const _TreeData('A-11', 'Healthy',          'HEALTHY',      98, Color(0xFF2E7D32)),
-    const _TreeData('A-12', 'Leaf Spot',        'CONFIRMED',    91, Color(0xFFD32F2F)),
-  ];
+  BitmapDescriptor? _healthyIcon;
+  BitmapDescriptor? _diseasedIcon;
+  BitmapDescriptor? _uncertainIcon;
+
+  String? _selectedPlantationId;
+  List<_PlantationData> _plantations = [];
+  LatLng _currentMapCenter = const LatLng(7.4818, 80.3609);
+
+  CameraPosition _initialPosition = const CameraPosition(
+    target: LatLng(7.4818, 80.3609),
+    zoom: 18.0,
+  );
+  
+  final Set<Marker> _markers = {};
+
+  List<_TreeData> _trees = [];
+  bool _isLoadingData = true;
 
   @override
   void initState() {
     super.initState();
     _tabs = TabController(length: 3, vsync: this);
+    _requestLocationPermission();
+    _loadCustomIcons();
+    _loadFirebaseData();
+  }
+
+  Future<void> _loadFirebaseData() async {
+    try {
+      final plantations = await FirebaseService.getPlantations();
+      if (!mounted) return;
+      if (plantations.isNotEmpty) {
+        _plantations = plantations.map((p) => _PlantationData(
+          p['id'], p['name'], LatLng(p['latitude'], p['longitude'])
+        )).toList();
+        _selectedPlantationId = _plantations.first.id;
+        _currentMapCenter = _plantations.first.location;
+        _initialPosition = CameraPosition(target: _currentMapCenter, zoom: 18.0);
+        await _loadTreesForPlantation(_selectedPlantationId!);
+      } else {
+        _plantations = [];
+        _trees = [];
+        _initializeMarkers();
+      }
+    } catch (e) {
+      debugPrint("Error loading data: $e");
+    } finally {
+      if (mounted) setState(() => _isLoadingData = false);
+    }
+  }
+
+  Future<void> _loadTreesForPlantation(String plantationId) async {
+    try {
+      final trees = await FirebaseService.getTrees(plantationId);
+      if (!mounted) return;
+      _trees = trees.map((t) => _TreeData(
+        t['id'], t['treeId'], t['disease'], t['status'], t['confidence'],
+        t['status'] == 'HEALTHY' ? const Color(0xFF2E7D32) : t['status'] == 'CONFIRMED' ? const Color(0xFFD32F2F) : const Color(0xFFF57C00),
+        LatLng(t['latitude'], t['longitude'])
+      )).toList();
+      _initializeMarkers();
+    } catch (e) {
+      debugPrint("Error loading trees: $e");
+    }
+  }
+
+  Future<void> _loadCustomIcons() async {
+    _healthyIcon = await _getMarkerIcon(const Color(0xFF2E7D32));
+    _diseasedIcon = await _getMarkerIcon(const Color(0xFFD32F2F));
+    _uncertainIcon = await _getMarkerIcon(const Color(0xFFF57C00));
+    _initializeMarkers(); 
+  }
+
+  Future<BitmapDescriptor> _getMarkerIcon(Color color) async {
+    final ui.PictureRecorder pictureRecorder = ui.PictureRecorder();
+    final Canvas canvas = Canvas(pictureRecorder);
+    
+    final Paint paint = Paint()..color = color.withOpacity(0.2);
+    canvas.drawCircle(const Offset(40, 40), 40, paint);
+    
+    final Paint borderPaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4;
+    canvas.drawCircle(const Offset(40, 40), 40, borderPaint);
+
+    TextPainter textPainter = TextPainter(textDirection: TextDirection.ltr);
+    textPainter.text = TextSpan(
+      text: String.fromCharCode(Icons.nature.codePoint),
+      style: TextStyle(
+        fontSize: 50.0,
+        fontFamily: Icons.nature.fontFamily,
+        package: Icons.nature.fontPackage,
+        color: color,
+      ),
+    );
+    textPainter.layout();
+    textPainter.paint(canvas, const Offset(15, 15));
+
+    final ui.Image image = await pictureRecorder.endRecording().toImage(80, 80);
+    final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+    return BitmapDescriptor.fromBytes(byteData!.buffer.asUint8List());
+  }
+
+  Future<void> _requestLocationPermission() async {
+    final status = await Permission.location.request();
+    if (status.isGranted) {
+      if (mounted) {
+        setState(() {
+          _locationPermissionGranted = true;
+        });
+
+        try {
+          Position position = await Geolocator.getCurrentPosition(
+              desiredAccuracy: LocationAccuracy.high);
+              
+          final newPos = CameraPosition(
+            target: LatLng(position.latitude, position.longitude),
+            zoom: 18.0,
+          );
+          
+          setState(() {
+            _initialPosition = newPos;
+          });
+
+          if (_mapController != null) {
+            _mapController!.animateCamera(CameraUpdate.newCameraPosition(newPos));
+          }
+        } catch (e) {
+          debugPrint("Could not fetch location: $e");
+        }
+      }
+    }
+  }
+
+  void _initializeMarkers() {
+    _markers.clear();
+    for (int i = 0; i < _trees.length; i++) {
+      final t = _trees[i];
+      _markers.add(
+        Marker(
+          markerId: MarkerId(t.id),
+          position: t.location,
+          infoWindow: InfoWindow(title: 'Tree ${t.id}', snippet: t.disease),
+          icon: t.status == 'HEALTHY' ? (_healthyIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen)) : 
+                t.status == 'CONFIRMED' ? (_diseasedIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed)) : 
+                (_uncertainIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange)),
+          onTap: () => _showRemoveTreeDialog(t.id),
+        ),
+      );
+    }
+    if (mounted) setState(() {});
   }
 
   @override
@@ -76,19 +223,35 @@ class _DroneReportScreenState extends State<DroneReportScreen> with SingleTicker
             child: Row(
               children: [
                 Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: AppColors.divider),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.videocam_rounded, color: AppColors.primary, size: 18),
-                        const SizedBox(width: 8),
-                        Text('plantation_flight_01.mp4', style: AppTextStyles.body.copyWith(fontSize: 13)),
-                      ],
+                  child: GestureDetector(
+                    onTap: _pickFile,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppColors.divider),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            _selectedFile != null ? Icons.check_circle_rounded : Icons.upload_file_rounded, 
+                            color: AppColors.primary, 
+                            size: 18
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _selectedFile != null 
+                                  ? _selectedFile!.path.split('/').last.split('\\').last 
+                                  : 'Tap to upload image/video', 
+                              style: AppTextStyles.body.copyWith(fontSize: 13),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -132,16 +295,55 @@ class _DroneReportScreenState extends State<DroneReportScreen> with SingleTicker
   }
 
   Widget _buildMapView() {
-    // Grid representing the plantation
-    const cols = 4;
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Plantation Map — Kurunegala Block A', style: AppTextStyles.heading3),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _isLoadingData
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                  : _plantations.isEmpty
+                      ? const Text('No Plantations', style: AppTextStyles.heading3)
+                      : DropdownButton<String>(
+                          value: _selectedPlantationId,
+                          items: _plantations.map((p) => DropdownMenuItem(value: p.id, child: Text(p.name, style: AppTextStyles.heading3))).toList(),
+                          onChanged: (val) async {
+                            if (val != null) {
+                              setState(() => _selectedPlantationId = val);
+                              final selected = _plantations.firstWhere((p) => p.id == val);
+                              _mapController?.animateCamera(CameraUpdate.newLatLng(selected.location));
+                              await _loadTreesForPlantation(val);
+                            }
+                          },
+                          underline: const SizedBox(),
+                          icon: const Icon(Icons.arrow_drop_down, color: AppColors.primary),
+                        ),
+              IconButton(
+                icon: const Icon(Icons.add_location_alt_rounded, color: AppColors.primary),
+                onPressed: _showAddPlantationFlow,
+              )
+            ],
+          ),
           const SizedBox(height: 4),
-          const Text('12 trees scanned  ·  Tap a tree for details', style: AppTextStyles.body),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('${_trees.length} trees scanned', style: AppTextStyles.body),
+              Row(
+                children: [
+                  const Text('Add Mode', style: AppTextStyles.body),
+                  Switch(
+                    value: _addMode,
+                    activeColor: AppColors.primary,
+                    onChanged: (val) => setState(() => _addMode = val),
+                  ),
+                ],
+              ),
+            ],
+          ),
           const SizedBox(height: 14),
 
           // Legend
@@ -156,40 +358,28 @@ class _DroneReportScreenState extends State<DroneReportScreen> with SingleTicker
           ),
           const SizedBox(height: 16),
 
-          // Tree grid
+          // Google Map
           Expanded(
-            child: GridView.builder(
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: cols,
-                crossAxisSpacing: 10,
-                mainAxisSpacing: 10,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: GoogleMap(
+                initialCameraPosition: _initialPosition,
+                mapType: MapType.normal,
+                myLocationEnabled: _locationPermissionGranted,
+                myLocationButtonEnabled: _locationPermissionGranted,
+                markers: _markers,
+                onTap: (LatLng location) {
+                  if (_addMode) {
+                    _showAddTreeDialog(location);
+                  }
+                },
+                onCameraMove: (pos) {
+                  _currentMapCenter = pos.target;
+                },
+                onMapCreated: (GoogleMapController controller) {
+                  _mapController = controller;
+                },
               ),
-              itemCount: _trees.length,
-              itemBuilder: (_, i) {
-                final t = _trees[i];
-                return GestureDetector(
-                  onTap: () => Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => const PredictionResultScreen())),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: t.color.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: t.color.withOpacity(0.4), width: 1.5),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.park_rounded, color: t.color, size: 28),
-                        const SizedBox(height: 4),
-                        Text(t.id, style: TextStyle(
-                          color: t.color, fontSize: 11, fontWeight: FontWeight.w700)),
-                        Text('${t.confidence}%', style: TextStyle(
-                          color: t.color, fontSize: 10)),
-                      ],
-                    ),
-                  ),
-                );
-              },
             ),
           ),
         ],
@@ -218,7 +408,7 @@ class _DroneReportScreenState extends State<DroneReportScreen> with SingleTicker
                     color: t.color.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(Icons.park_rounded, color: t.color, size: 24),
+                  child: Icon(Icons.nature, color: t.color, size: 24),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -267,7 +457,7 @@ class _DroneReportScreenState extends State<DroneReportScreen> with SingleTicker
         children: [
           // Overview cards
           Row(children: [
-            _SummaryCard(label: 'Total Trees', value: '$total', icon: Icons.park_rounded,
+            _SummaryCard(label: 'Total Trees', value: '$total', icon: Icons.nature,
                 color: AppColors.primary),
             const SizedBox(width: 10),
             _SummaryCard(label: 'Diseased', value: '$confirmed', icon: Icons.warning_rounded,
@@ -331,18 +521,233 @@ class _DroneReportScreenState extends State<DroneReportScreen> with SingleTicker
     );
   }
 
+  Future<void> _pickFile() async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['jpg', 'png', 'mp4'],
+    );
+
+    if (result != null && result.files.single.path != null) {
+      setState(() {
+        _selectedFile = File(result.files.single.path!);
+      });
+    }
+  }
+
   void _processVideo() async {
+    if (_selectedFile == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select an image or video first.', style: TextStyle(color: Colors.white)), backgroundColor: Colors.red),
+      );
+      return;
+    }
+    if (_plantations.isEmpty || _selectedPlantationId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Add a plantation first!')));
+      return;
+    }
+
     setState(() => _processing = true);
-    await Future.delayed(const Duration(seconds: 2));
-    if (mounted) setState(() => _processing = false);
+    
+    // Call the YOLO service foundation
+    var predictions = await _yoloService.detectCoconutTrees(_selectedFile!);
+    
+    if (mounted) {
+      try {
+        for (int i = 0; i < predictions.length; i++) {
+          final newId = 'D-${_trees.length + 1}';
+          final confidence = (predictions[i]['confidenceInClass'] * 100).toInt();
+          double latOffset = (i * 0.0002) + 0.0001;
+          double lngOffset = (i * 0.0002) - 0.0001;
+          final loc = LatLng(_initialPosition.target.latitude + latOffset, _initialPosition.target.longitude + lngOffset);
+          
+          final docId = await FirebaseService.addTree(
+            plantationId: _selectedPlantationId!,
+            treeId: newId,
+            disease: 'Detected',
+            status: 'UNCERTAIN',
+            confidence: confidence,
+            lat: loc.latitude,
+            lng: loc.longitude,
+          );
+          
+          _trees.add(_TreeData(docId, newId, 'Detected', 'UNCERTAIN', confidence, const Color(0xFFF57C00), loc));
+        }
+        setState(() {
+          _processing = false;
+          _initializeMarkers();
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Analysis complete! Found ${predictions.length} coconut trees.', style: const TextStyle(color: Colors.white)),
+            backgroundColor: AppColors.primary,
+          ),
+        );
+      } catch (e) {
+        setState(() => _processing = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error saving drone trees: $e')));
+      }
+    }
+  }
+
+  void _showAddPlantationFlow() async {
+    final LatLng? selectedLoc = await Navigator.push(
+      context, 
+      MaterialPageRoute(builder: (_) => LocationSelectionScreen(initialPosition: _currentMapCenter))
+    );
+    
+    if (selectedLoc == null || !mounted) return;
+
+    final TextEditingController nameCtrl = TextEditingController();
+    bool _isSaving = false;
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Add New Plantation'),
+          content: TextField(
+            controller: nameCtrl,
+            decoration: const InputDecoration(hintText: 'Plantation Name', border: OutlineInputBorder()),
+          ),
+          actions: [
+            TextButton(onPressed: _isSaving ? null : () => Navigator.pop(context), child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: _isSaving ? null : () async {
+                if (nameCtrl.text.isNotEmpty) {
+                  setDialogState(() => _isSaving = true);
+                  try {
+                    final newId = await FirebaseService.addPlantation(nameCtrl.text.trim(), selectedLoc.latitude, selectedLoc.longitude);
+                    if (!mounted) return;
+                    setState(() {
+                      _plantations.add(_PlantationData(newId, nameCtrl.text.trim(), selectedLoc));
+                      _selectedPlantationId = newId;
+                    });
+                    Navigator.pop(context);
+                    _mapController?.animateCamera(CameraUpdate.newCameraPosition(CameraPosition(target: selectedLoc, zoom: 18.0)));
+                    await _loadTreesForPlantation(newId);
+                  } catch (e) {
+                    setDialogState(() => _isSaving = false);
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                  }
+                }
+              },
+              child: _isSaving ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text('Add'),
+            )
+          ],
+        )
+      )
+    );
+  }
+
+  void _showAddTreeDialog(LatLng location) {
+    if (_plantations.isEmpty || _selectedPlantationId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Add a plantation first!')));
+      return;
+    }
+    bool _isSaving = false;
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) => AlertDialog(
+            title: const Text('Add Coconut Tree Manually'),
+            content: const Text('Do you want to label a tree at this location?'),
+            actions: [
+              TextButton(
+                onPressed: _isSaving ? null : () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: _isSaving ? null : () async {
+                  setDialogState(() => _isSaving = true);
+                  try {
+                    final newId = 'M-${_trees.length + 1}';
+                    final docId = await FirebaseService.addTree(
+                      plantationId: _selectedPlantationId!,
+                      treeId: newId,
+                      disease: 'Manual Add',
+                      status: 'HEALTHY',
+                      confidence: 100,
+                      lat: location.latitude,
+                      lng: location.longitude,
+                    );
+                    if (!mounted) return;
+                    setState(() {
+                      _trees.add(_TreeData(docId, newId, 'Manual Add', 'HEALTHY', 100, const Color(0xFF2E7D32), location));
+                      _initializeMarkers();
+                    });
+                    Navigator.pop(context);
+                  } catch (e) {
+                    setDialogState(() => _isSaving = false);
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                  }
+                },
+                child: _isSaving ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text('Add Tree'),
+              ),
+            ],
+          )
+        );
+      },
+    );
+  }
+
+  void _showRemoveTreeDialog(String treeId) {
+    if (_selectedPlantationId == null) return;
+    final tree = _trees.firstWhere((t) => t.id == treeId);
+    bool _isRemoving = false;
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) => AlertDialog(
+            title: const Text('Remove Tree'),
+            content: Text('Are you sure you want to remove Tree $treeId?'),
+            actions: [
+              TextButton(
+                onPressed: _isRemoving ? null : () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                onPressed: _isRemoving ? null : () async {
+                  setDialogState(() => _isRemoving = true);
+                  try {
+                    await FirebaseService.removeTree(_selectedPlantationId!, tree.docId);
+                    if (mounted) {
+                      setState(() {
+                        _trees.removeWhere((t) => t.docId == tree.docId);
+                        _initializeMarkers();
+                      });
+                      Navigator.pop(context);
+                    }
+                  } catch (e) {
+                    setDialogState(() => _isRemoving = false);
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                  }
+                },
+                child: _isRemoving ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text('Remove', style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          )
+        );
+      },
+    );
   }
 }
 
+class _PlantationData {
+  final String id;
+  final String name;
+  final LatLng location;
+  const _PlantationData(this.id, this.name, this.location);
+}
+
 class _TreeData {
+  final String docId;
   final String id, disease, status;
   final int confidence;
   final Color color;
-  const _TreeData(this.id, this.disease, this.status, this.confidence, this.color);
+  final LatLng location;
+  const _TreeData(this.docId, this.id, this.disease, this.status, this.confidence, this.color, this.location);
 }
 
 class _MapLegend extends StatelessWidget {

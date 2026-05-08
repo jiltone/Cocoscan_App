@@ -21,6 +21,11 @@ class _CameraScreenState extends State<CameraScreen>
   bool _flashOn = false;
   int _camIndex = 0;          // 0 = back, 1 = front
   String _captureMode = 'Leaf'; // Leaf | Tree | Gallery
+  String _cameraSource = 'Device'; // Device | Drone
+  bool _gridOn = true;
+  String _hdrMode = 'Auto';
+  String _aspectRatio = '4:3';
+  String _quality = 'High';
   bool _analyzing = false;
   String? _errorMsg;
 
@@ -168,10 +173,18 @@ class _CameraScreenState extends State<CameraScreen>
         children: [
 
           // ── Camera preview OR placeholder ──────────────────────
-          if (_cameraReady && _ctrl != null)
+          if (_cameraSource == 'Drone')
+            _buildDronePlaceholder()
+          else if (_cameraReady && _ctrl != null)
             Positioned.fill(child: CameraPreview(_ctrl!))
           else
             _buildPlaceholder(),
+
+          // ── Grid Overlay ────────────────────────────────────────
+          if (_gridOn && (_cameraReady || _cameraSource == 'Drone'))
+            Positioned.fill(
+              child: CustomPaint(painter: _GridPainter()),
+            ),
 
           // ── Dark vignette overlay ───────────────────────────────
           Positioned.fill(
@@ -530,37 +543,113 @@ class _CameraScreenState extends State<CameraScreen>
         ),
       );
 
+  Widget _buildDronePlaceholder() => Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFF0A1A2A), Color(0xFF050F1A), Color(0xFF000000)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.flight_takeoff_rounded, size: 64, color: AppColors.primaryGlow.withOpacity(0.8)),
+              const SizedBox(height: 16),
+              const Text('Connecting to Drone Feed...', style: TextStyle(color: Colors.white70, fontSize: 14)),
+              const SizedBox(height: 20),
+              const CircularProgressIndicator(color: AppColors.primaryGlow, strokeWidth: 2),
+            ],
+          ),
+        ),
+      );
+
   void _showSettings() {
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF1A1A1A),
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Camera Settings',
-                style: AppTextStyles.heading3.copyWith(color: Colors.white)),
-            const SizedBox(height: 20),
-            const _SettingTile(
-                icon: Icons.grid_on_rounded, label: 'Grid', value: 'On'),
-            const _SettingTile(
-                icon: Icons.hdr_on_rounded, label: 'HDR', value: 'Auto'),
-            const _SettingTile(
-                icon: Icons.aspect_ratio_rounded,
-                label: 'Aspect Ratio',
-                value: '4:3'),
-            const _SettingTile(
-                icon: Icons.high_quality_rounded,
-                label: 'Quality',
-                value: 'High'),
-            const SizedBox(height: 8),
-          ],
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setModalState) => Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Camera Settings',
+                  style: AppTextStyles.heading3.copyWith(color: Colors.white)),
+              const SizedBox(height: 20),
+              ListTile(
+                leading: const Icon(Icons.videocam_rounded, color: AppColors.primaryGlow, size: 20),
+                title: const Text('Camera Source', style: TextStyle(color: Colors.white, fontSize: 14)),
+                trailing: DropdownButton<String>(
+                  value: _cameraSource,
+                  dropdownColor: const Color(0xFF2A2A2A),
+                  style: const TextStyle(color: AppColors.primaryGlow, fontSize: 13, fontWeight: FontWeight.bold),
+                  underline: const SizedBox(),
+                  items: ['Device', 'Drone'].map((s) => DropdownMenuItem(value: s, child: Text('$s Camera'))).toList(),
+                  onChanged: (val) {
+                    if (val != null) {
+                      setModalState(() => _cameraSource = val);
+                      setState(() => _cameraSource = val);
+                    }
+                  },
+                ),
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+              ),
+              ListTile(
+                leading: const Icon(Icons.grid_on_rounded, color: AppColors.primaryGlow, size: 20),
+                title: const Text('Grid Overlay', style: TextStyle(color: Colors.white, fontSize: 14)),
+                trailing: Switch(
+                  value: _gridOn,
+                  activeColor: AppColors.primaryGlow,
+                  onChanged: (val) {
+                    setModalState(() => _gridOn = val);
+                    setState(() => _gridOn = val);
+                  },
+                ),
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+              ),
+              _buildDropdownSetting('HDR', Icons.hdr_on_rounded, _hdrMode, ['Auto', 'On', 'Off'], (val) {
+                setModalState(() => _hdrMode = val!);
+                setState(() => _hdrMode = val!);
+              }),
+              _buildDropdownSetting('Aspect Ratio', Icons.aspect_ratio_rounded, _aspectRatio, ['4:3', '16:9', '1:1'], (val) {
+                setModalState(() => _aspectRatio = val!);
+                setState(() => _aspectRatio = val!);
+              }),
+              _buildDropdownSetting('Quality', Icons.high_quality_rounded, _quality, ['High', 'Medium', 'Low'], (val) {
+                setModalState(() => _quality = val!);
+                setState(() => _quality = val!);
+              }),
+              const SizedBox(height: 8),
+            ],
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _buildDropdownSetting(String label, IconData icon, String currentValue, List<String> options, ValueChanged<String?> onChanged) {
+    return ListTile(
+      leading: Icon(icon, color: AppColors.primaryGlow, size: 20),
+      title: Text(label, style: const TextStyle(color: Colors.white, fontSize: 14)),
+      trailing: DropdownButton<String>(
+        value: currentValue,
+        dropdownColor: const Color(0xFF2A2A2A),
+        style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w600),
+        underline: const SizedBox(),
+        items: options.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+        onChanged: onChanged,
+      ),
+      contentPadding: EdgeInsets.zero,
+      dense: true,
     );
   }
 }
@@ -672,4 +761,24 @@ class _CornerPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_) => false;
+}
+
+class _GridPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white.withOpacity(0.3)
+      ..strokeWidth = 1;
+
+    final double w3 = size.width / 3;
+    final double h3 = size.height / 3;
+
+    canvas.drawLine(Offset(w3, 0), Offset(w3, size.height), paint);
+    canvas.drawLine(Offset(w3 * 2, 0), Offset(w3 * 2, size.height), paint);
+    canvas.drawLine(Offset(0, h3), Offset(size.width, h3), paint);
+    canvas.drawLine(Offset(0, h3 * 2), Offset(size.width, h3 * 2), paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
