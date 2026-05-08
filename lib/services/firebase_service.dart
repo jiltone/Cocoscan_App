@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -13,6 +14,9 @@ class FirebaseService {
   static const _tokenKey = 'firebase_user_id';
 
   static Future<String?> getCurrentUserId() async {
+    final currentUser = _auth.currentUser;
+    if (currentUser != null) return currentUser.uid;
+
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_tokenKey);
   }
@@ -56,6 +60,7 @@ class FirebaseService {
           'role': 'Farmer',
           'plantation': '',
           'phone': '',
+          'avatar': '',
           'createdAt': FieldValue.serverTimestamp(),
           'stats': {
             'totalScans': 0,
@@ -77,6 +82,7 @@ class FirebaseService {
           'role': userData['role'] ?? 'Farmer',
           'plantation': userData['plantation'] ?? '',
           'phone': userData['phone'] ?? '',
+          'avatar': userData['avatar'] ?? '',
           'stats': userData['stats'] ?? {
             'totalScans': 0,
             'diseasesFound': 0,
@@ -125,6 +131,7 @@ class FirebaseService {
         'role': role,
         'plantation': plantation ?? '',
         'phone': phone ?? '',
+        'avatar': '',
         'createdAt': FieldValue.serverTimestamp(),
         'stats': {
           'totalScans': 0,
@@ -169,6 +176,7 @@ class FirebaseService {
         'role': userData['role'] ?? 'Farmer',
         'plantation': userData['plantation'] ?? '',
         'phone': userData['phone'] ?? '',
+        'avatar': userData['avatar'] ?? '',
         'stats': userData['stats'] ?? {
           'totalScans': 0,
           'diseasesFound': 0,
@@ -178,6 +186,54 @@ class FirebaseService {
       };
     } catch (e) {
       throw Exception('Failed to load profile: ${e.toString()}');
+    }
+  }
+
+  static Future<void> updateProfile({
+    String? name,
+    String? email,
+    String? phone,
+    String? plantation,
+  }) async {
+    try {
+      final userId = await getCurrentUserId();
+      if (userId == null) throw Exception('Not authenticated.');
+
+      final updates = <String, dynamic>{};
+      if (name != null) updates['name'] = name;
+      if (email != null) updates['email'] = email;
+      if (phone != null) updates['phone'] = phone;
+      if (plantation != null) updates['plantation'] = plantation;
+
+      if (updates.isEmpty) return;
+      await _firestore.collection('users').doc(userId).update(updates);
+    } catch (e) {
+      throw Exception('Failed to update profile: ${e.toString()}');
+    }
+  }
+
+  static Future<String> uploadProfileAvatar({
+    required Uint8List avatarBytes,
+  }) async {
+    try {
+      final userId = await getCurrentUserId();
+      if (userId == null) throw Exception('Not authenticated.');
+
+      final imageRef = _storage
+          .ref()
+          .child('avatars/$userId/${DateTime.now().millisecondsSinceEpoch}.jpg');
+      await imageRef.putData(
+        avatarBytes,
+        SettableMetadata(contentType: 'image/jpeg'),
+      );
+      final imageUrl = await imageRef.getDownloadURL();
+
+      final userRef = _firestore.collection('users').doc(userId);
+      await userRef.set({'avatar': imageUrl}, SetOptions(merge: true));
+      await _auth.currentUser?.updatePhotoURL(imageUrl);
+      return imageUrl;
+    } catch (e) {
+      throw Exception('Failed to upload profile image: ${e.toString()}');
     }
   }
 

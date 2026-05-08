@@ -1,11 +1,18 @@
+import 'dart:typed_data';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../services/backend_service.dart';
+import '../services/theme_service.dart';
+import '../services/localization_service.dart';
 import '../theme/app_theme.dart';
 import 'login_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final String role;
-  const ProfileScreen({super.key, required this.role});
+  final void Function(String? avatarUrl)? onProfileUpdated;
+  const ProfileScreen({super.key, required this.role, this.onProfileUpdated});
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
@@ -21,6 +28,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _email         = 'kasun@cocoscan.lk';
   String _phone         = '+94 77 123 4567';
   String _plantation    = 'Kurunegala, Sri Lanka';
+  String? _avatarUrl;
+  Uint8List? _avatarBytes;
   Map<String, dynamic> _stats = {
     'totalScans': 47,
     'diseasesFound': 12,
@@ -31,6 +40,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
+    _language = LocalizationService.getCurrentLanguage();
     _loadProfile();
   }
 
@@ -43,6 +53,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _email = profile['email'] as String;
         _phone = profile['phone'] as String;
         _plantation = profile['plantation'] as String;
+        _avatarUrl = profile['avatar'] as String?;
         _stats = profile['stats'] as Map<String, dynamic>;
       });
     } catch (_) {
@@ -66,7 +77,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
             expandedHeight: 220,
             pinned: true,
             backgroundColor: AppColors.primary,
-            title: const Text('My Profile'),
+            title: Row(children: [
+              Expanded(child: Text(LocalizationService.get('myProfile'))),
+              Container(
+                width: 36, height: 36,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white24,
+                ),
+                child: ClipOval(
+                  child: _buildAvatarImage(width: 36, height: 36),
+                ),
+              ),
+            ]),
             actions: [
               IconButton(
                 icon: const Icon(Icons.edit_rounded, color: Colors.white),
@@ -88,31 +111,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Stack(
-                              children: [
-                                Container(
-                                  width: 90, height: 90,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.2),
-                                    shape: BoxShape.circle,
-                                    border: Border.all(color: Colors.white, width: 3),
-                                  ),
-                                  child: const Icon(Icons.person_rounded,
-                                      color: Colors.white, size: 50),
-                                ),
-                                Positioned(
-                                  bottom: 0, right: 0,
-                                  child: Container(
-                                    width: 28, height: 28,
+                            GestureDetector(
+                              onTap: _pickAvatarImage,
+                              child: Stack(
+                                children: [
+                                  Container(
+                                    width: 90, height: 90,
                                     decoration: BoxDecoration(
-                                      color: AppColors.accent,
+                                      color: Colors.white.withOpacity(0.2),
                                       shape: BoxShape.circle,
-                                      border: Border.all(color: Colors.white, width: 2)),
-                                    child: const Icon(Icons.camera_alt_rounded,
-                                        color: Colors.white, size: 14),
+                                      border: Border.all(color: Colors.white, width: 3),
+                                    ),
+                                    child: ClipOval(
+                                      child: _buildAvatarImage(width: 90, height: 90),
+                                    ),
                                   ),
-                                ),
-                              ],
+                                  Positioned(
+                                    bottom: 0, right: 0,
+                                    child: Container(
+                                      width: 28, height: 28,
+                                      decoration: BoxDecoration(
+                                        color: AppColors.accent,
+                                        shape: BoxShape.circle,
+                                        border: Border.all(color: Colors.white, width: 2)),
+                                      child: const Icon(Icons.camera_alt_rounded,
+                                          color: Colors.white, size: 14),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                             const SizedBox(height: 12),
                             Text(_name, style: const TextStyle(
@@ -211,7 +238,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       label: 'Dark Mode',
                       value: _darkModeOn,
                       color: const Color(0xFF4527A0),
-                      onChanged: (v) => setState(() => _darkModeOn = v),
+                      onChanged: (v) => setState(() {
+                        _darkModeOn = v;
+                        appThemeMode.value = v ? ThemeMode.dark : ThemeMode.light;
+                      }),
                     ),
                     _Divider(),
                     _SwitchTile(
@@ -238,22 +268,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   _SettingsCard(children: [
                     _NavigationTile(
                       icon: Icons.language_rounded,
-                      label: 'Language',
+                      label: LocalizationService.get('language'),
                       value: _language,
                       onTap: _changeLanguage,
                     ),
                     _Divider(),
                     _NavigationTile(
                       icon: Icons.storage_rounded,
-                      label: 'Storage Used',
+                      label: LocalizationService.get('storageUsed'),
                       value: '245 MB',
-                      onTap: () {},
+                      onTap: _showStorage,
                     ),
                     _Divider(),
                     _NavigationTile(
                       icon: Icons.info_outline_rounded,
-                      label: 'App Version',
-                      value: 'v2.0.0',
+                      label: LocalizationService.get('appVersion'),
+                      value: 'v1.0.0',
                       onTap: _showAbout,
                     ),
                   ]),
@@ -265,8 +295,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   _SettingsCard(children: [
                     _NavigationTile(
                       icon: Icons.help_outline_rounded,
-                      label: 'Help & FAQ',
-                      onTap: () {},
+                      label: LocalizationService.get('help'),
+                      onTap: _showHelp,
                     ),
                     _Divider(),
                     _NavigationTile(
@@ -278,13 +308,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     _NavigationTile(
                       icon: Icons.privacy_tip_outlined,
                       label: 'Privacy Policy',
-                      onTap: () {},
+                      onTap: () => _showPolicy(
+                        'Privacy Policy',
+                        'We collect only the data needed to improve disease detection and keep it safe.',
+                      ),
                     ),
                     _Divider(),
                     _NavigationTile(
                       icon: Icons.description_outlined,
                       label: 'Terms of Service',
-                      onTap: () {},
+                      onTap: () => _showPolicy(
+                        'Terms of Service',
+                        'By using CocoScan you agree to our terms of service for responsible and safe usage.',
+                      ),
                     ),
                   ]),
                   const SizedBox(height: 24),
@@ -295,7 +331,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: OutlinedButton.icon(
                       onPressed: _logout,
                       icon: const Icon(Icons.logout_rounded, size: 20),
-                      label: const Text('Sign Out'),
+                      label: Text(LocalizationService.get('logout')),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppColors.confirmed,
                         side: const BorderSide(color: AppColors.confirmed),
@@ -307,7 +343,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   const SizedBox(height: 8),
                   const Center(
-                    child: Text('CocoScan v2.0.0 · Made with ❤️ in Sri Lanka',
+                    child: Text('CocoScan v1.0.0',
                         style: AppTextStyles.caption),
                   ),
                   const SizedBox(height: 80),
@@ -321,8 +357,123 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _editProfile() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Edit profile coming soon!')));
+    final nameCtrl = TextEditingController(text: _name);
+    final emailCtrl = TextEditingController(text: _email);
+    final phoneCtrl = TextEditingController(text: _phone);
+    final plantationCtrl = TextEditingController(text: _plantation);
+    var saving = false;
+
+    showDialog<void>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Edit Profile', style: AppTextStyles.heading3),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: nameCtrl,
+                      decoration: const InputDecoration(labelText: 'Full Name'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: emailCtrl,
+                      decoration: const InputDecoration(labelText: 'Email'),
+                      keyboardType: TextInputType.emailAddress,
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: phoneCtrl,
+                      decoration: const InputDecoration(labelText: 'Phone'),
+                      keyboardType: TextInputType.phone,
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: plantationCtrl,
+                      decoration: const InputDecoration(labelText: 'Plantation'),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: saving ? null : () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: saving
+                      ? null
+                      : () async {
+                          final newName = nameCtrl.text.trim();
+                          final newEmail = emailCtrl.text.trim();
+                          final newPhone = phoneCtrl.text.trim();
+                          final newPlantation = plantationCtrl.text.trim();
+
+                          if (newName.isEmpty || newEmail.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                backgroundColor: Colors.lightGreen.withOpacity(0.9),
+                                content: const Text(
+                                  'Name and email are required.',
+                                  style: TextStyle(color: Colors.black),
+                                ),
+                              ),
+                            );
+                            return;
+                          }
+
+                          setDialogState(() => saving = true);
+                          try {
+                            await BackendService.updateProfile(
+                              name: newName,
+                              email: newEmail,
+                              phone: newPhone,
+                              plantation: newPlantation,
+                            );
+                            if (!mounted) return;
+                            setState(() {
+                              _name = newName;
+                              _email = newEmail;
+                              _phone = newPhone;
+                              _plantation = newPlantation;
+                            });
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                backgroundColor: Colors.lightGreen.withOpacity(0.9),
+                                content: const Text(
+                                  'Profile updated successfully.',
+                                  style: TextStyle(color: Colors.black),
+                                ),
+                              ),
+                            );
+                          } catch (error) {
+                            if (!mounted) return;
+                            setDialogState(() => saving = false);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                backgroundColor: Colors.lightGreen.withOpacity(0.9),
+                                content: Text(
+                                  'Could not save profile: $error',
+                                  style: const TextStyle(color: Colors.black),
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                  child: saving
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Text('Save'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   void _changeLanguage() {
@@ -334,16 +485,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Select Language', style: AppTextStyles.heading3),
+            Text(LocalizationService.get('selectLanguage'), style: AppTextStyles.heading3),
             const SizedBox(height: 16),
-            ...['English', 'Sinhala', 'Tamil'].map((lang) => ListTile(
+            ...LocalizationService.getAvailableLanguages().map((lang) => ListTile(
               title: Text(lang),
               leading: Radio<String>(
                 value: lang, groupValue: _language,
                 activeColor: AppColors.primary,
-                onChanged: (v) {
-                  setState(() => _language = v!);
+                onChanged: (v) async {
+                  await LocalizationService.setLanguage(v!);
+                  if (!mounted) return;
+                  setState(() => _language = v);
                   Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Language changed to $v'),
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
                 },
               ),
               contentPadding: EdgeInsets.zero,
@@ -354,11 +513,115 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  void _showStorage() {
+    showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Storage Used', style: AppTextStyles.heading3),
+        content: const Text('You are using 245 MB of storage. Clear cache or old scans to free up space.',
+            style: AppTextStyles.body),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
+        ],
+      ),
+    );
+  }
+
+  void _showHelp() {
+    showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Help & FAQ', style: AppTextStyles.heading3),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: const [
+            Text('Need help with CocoScan?', style: AppTextStyles.body),
+            SizedBox(height: 12),
+            Text('- Edit your details via the profile edit button.', style: AppTextStyles.caption),
+            SizedBox(height: 6),
+            Text('- Use the switches to manage notifications, dark mode, and auto-sync.', style: AppTextStyles.caption),
+            SizedBox(height: 6),
+            Text('- Contact support if scans or login fail.', style: AppTextStyles.caption),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
+        ],
+      ),
+    );
+  }
+
+  void _showPolicy(String title, String message) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(title, style: AppTextStyles.heading3),
+        content: Text(message, style: AppTextStyles.body),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
+        ],
+      ),
+    );
+  }
+
+  void _pickAvatarImage() async {
+    final picker = ImagePicker();
+    final result = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+    if (result == null || !mounted) return;
+    final bytes = await result.readAsBytes();
+    setState(() {
+      _avatarBytes = bytes;
+      _avatarUrl = null;
+    });
+
+    try {
+      final uploadedUrl = await BackendService.uploadProfileAvatar(avatarBytes: bytes);
+      if (!mounted) return;
+      setState(() {
+        _avatarUrl = uploadedUrl;
+        _avatarBytes = null;
+      });
+      widget.onProfileUpdated?.call(uploadedUrl);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.lightGreen.withOpacity(0.9),
+          content: const Text('Profile image uploaded successfully.', style: TextStyle(color: Colors.black)),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.lightGreen.withOpacity(0.9),
+          content: Text('Failed to upload profile image: $error', style: const TextStyle(color: Colors.black)),
+        ),
+      );
+    }
+  }
+
+  Widget _buildAvatarImage({required double width, required double height}) {
+    if (_avatarBytes != null) {
+      return Image.memory(_avatarBytes!, width: width, height: height, fit: BoxFit.cover);
+    }
+    if (_avatarUrl?.isNotEmpty ?? false) {
+      return Image.network(_avatarUrl!, width: width, height: height, fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _avatarPlaceholder());
+    }
+    return _avatarPlaceholder();
+  }
+
+  Widget _avatarPlaceholder() => Container(
+    alignment: Alignment.center,
+    color: Colors.white24,
+    child: const Icon(Icons.person_rounded, color: Colors.white, size: 50),
+  );
+
   void _showAbout() {
     showAboutDialog(
       context: context,
       applicationName: 'CocoScan',
-      applicationVersion: 'v2.0.0',
+      applicationVersion: 'v1.0.0',
       applicationLegalese: '© 2026 CocoScan · Sri Lanka',
       children: [
         const SizedBox(height: 12),
@@ -369,8 +632,53 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _sendFeedback() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Feedback form opening...')));
+    final feedbackCtrl = TextEditingController();
+
+    showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Send Feedback', style: AppTextStyles.heading3),
+        content: TextField(
+          controller: feedbackCtrl,
+          maxLines: 4,
+          decoration: const InputDecoration(
+            hintText: 'Describe your issue or suggestion...',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () {
+              final feedback = feedbackCtrl.text.trim();
+              if (feedback.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    backgroundColor: Colors.lightGreen.withOpacity(0.9),
+                    content: const Text(
+                      'Please enter feedback before sending.',
+                      style: TextStyle(color: Colors.black),
+                    ),
+                  ),
+                );
+                return;
+              }
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  backgroundColor: Colors.lightGreen.withOpacity(0.9),
+                  content: const Text(
+                    'Thank you! Your feedback was sent.',
+                    style: TextStyle(color: Colors.black),
+                  ),
+                ),
+              );
+            },
+            child: const Text('Send'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _logout() async {

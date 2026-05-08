@@ -6,8 +6,15 @@ import 'notifications_screen.dart';
 class HomeScreen extends StatefulWidget {
   final String role;
   final String userName;
+  final String? avatarUrl;
   final void Function(int)? onTabChange;
-  const HomeScreen({super.key, required this.role, this.userName = '', this.onTabChange});
+  const HomeScreen({
+    super.key,
+    required this.role,
+    this.userName = '',
+    this.avatarUrl,
+    this.onTabChange,
+  });
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
@@ -155,8 +162,22 @@ class _HomeScreenState extends State<HomeScreen>
                                       border: Border.all(
                                           color: Colors.white.withOpacity(0.4), width: 2),
                                     ),
-                                    child: const Icon(Icons.person_rounded,
-                                        color: Colors.white, size: 30),
+                                    child: ClipOval(
+                                      child: (widget.avatarUrl?.isNotEmpty ?? false)
+                                          ? Image.network(
+                                              widget.avatarUrl!,
+                                              width: 54,
+                                              height: 54,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (_, __, ___) => const Icon(
+                                                Icons.person_rounded,
+                                                color: Colors.white,
+                                                size: 30,
+                                              ),
+                                            )
+                                          : const Icon(Icons.person_rounded,
+                                              color: Colors.white, size: 30),
+                                    ),
                                   ),
                                 ),
                               ],

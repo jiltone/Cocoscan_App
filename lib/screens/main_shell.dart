@@ -16,26 +16,42 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _selectedIndex = 0;
   String _userName = '';
+  String _avatarUrl = '';
 
   @override
   void initState() {
     super.initState();
-    _loadUserName();
+    _loadUserProfile();
   }
 
-  Future<void> _loadUserName() async {
+  Future<void> _loadUserProfile() async {
     try {
       final profile = await FirebaseService.getProfile();
-      if (mounted) setState(() => _userName = profile['name'] ?? '');
+      if (mounted) {
+        setState(() {
+          _userName = profile['name'] ?? '';
+          _avatarUrl = profile['avatar'] ?? '';
+        });
+      }
     } catch (_) {}
   }
 
   List<Widget> get _pages => [
-    HomeScreen(role: widget.role, userName: _userName, onTabChange: _changeTab),
+    HomeScreen(
+      role: widget.role,
+      userName: _userName,
+      avatarUrl: _avatarUrl.isNotEmpty ? _avatarUrl : null,
+      onTabChange: _changeTab,
+    ),
     CameraScreen(onBack: () => _changeTab(0)),
     const DroneReportScreen(),
     const HistoryScreen(),
-    ProfileScreen(role: widget.role),
+    ProfileScreen(
+      role: widget.role,
+      onProfileUpdated: (avatarUrl) {
+        if (mounted) setState(() => _avatarUrl = avatarUrl ?? '');
+      },
+    ),
   ];
 
   void _changeTab(int index) {

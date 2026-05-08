@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'firebase_service.dart';
 
@@ -31,6 +32,26 @@ class BackendService {
 
   static Future<Map<String, dynamic>> getProfile() async {
     return await FirebaseService.getProfile();
+  }
+
+  static Future<void> updateProfile({
+    String? name,
+    String? email,
+    String? phone,
+    String? plantation,
+  }) async {
+    await FirebaseService.updateProfile(
+      name: name,
+      email: email,
+      phone: phone,
+      plantation: plantation,
+    );
+  }
+
+  static Future<String> uploadProfileAvatar({
+    required Uint8List avatarBytes,
+  }) async {
+    return await FirebaseService.uploadProfileAvatar(avatarBytes: avatarBytes);
   }
 
   static Future<List<dynamic>> getScans() async {
