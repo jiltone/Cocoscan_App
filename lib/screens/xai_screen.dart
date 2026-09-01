@@ -1,46 +1,92 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import '../services/inference_service.dart';
 import '../theme/app_theme.dart';
 import 'treatment_screen.dart';
 
 class XAIScreen extends StatefulWidget {
-  const XAIScreen({super.key});
+  /// The captured leaf photo's raw bytes, used to generate the explanation.
+  /// Optional so existing call sites keep compiling; pass it to see a real
+  /// Grad-CAM/LIME image instead of the "unavailable" placeholder.
+  ///
+  /// Deliberately bytes, not a dart:io File: File I/O isn't actually
+  /// implemented on Flutter Web despite compiling there (throws
+  /// "Unsupported operation: Platform._operatingSystem" at runtime), so a
+  /// File-based version of this screen always failed on web. The bytes are
+  /// already in memory from the camera capture anyway — no disk read needed
+  /// on any platform.
+  final Uint8List? imageBytes;
+  final String predictedLabel;
+  final double confidence;
+
+  const XAIScreen({
+    super.key,
+    this.imageBytes,
+    this.predictedLabel = 'Leaf Spot',
+    this.confidence = 0.92,
+  });
+
   @override
   State<XAIScreen> createState() => _XAIScreenState();
 }
 
-class _XAIScreenState extends State<XAIScreen> with TickerProviderStateMixin {
+class _XAIScreenState extends State<XAIScreen> {
   double _opacity = 0.65;
   String _mode = 'Grad-CAM';
-  late AnimationController _pulseCtrl;
-  late AnimationController _rippleCtrl;
-  late Animation<double> _pulse;
-  late Animation<double> _ripple;
 
   final _modes = {
-    'Grad-CAM': 'Uses gradients to highlight image regions important for prediction.',
-    'LIME': 'Identifies superpixels contributing most to the disease diagnosis.',
-    'Overlay': 'Combines original image and heatmap for full transparency.',
+    'Grad-CAM': 'Gradient-weighted Class Activation Mapping highlights the image '
+        'regions that most influenced the prediction. Warmer colours (red/orange) '
+        'indicate higher model attention.',
+    'LIME': 'Divides the image into superpixels and tests which ones most affect '
+        'the prediction. Highlighted segments contributed most to the diagnosis.',
+    'Overlay': 'Combines the original image and the Grad-CAM heatmap so you can '
+        'see exactly which leaf features triggered the diagnosis.',
   };
+
+  // image_base64 per mode, fetched from the FastAPI /api/gradcam and
+  // /api/lime endpoints (Overlay reuses the Grad-CAM image at a different
+  // blend alpha, applied client-side via the opacity slider).
+  final Map<String, String?> _images = {'Grad-CAM': null, 'LIME': null, 'Overlay': null};
+  bool _loading = false;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    _pulseCtrl = AnimationController(vsync: this,
-        duration: const Duration(seconds: 2))..repeat(reverse: true);
-    _pulse = Tween(begin: 0.7, end: 1.0).animate(
-        CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut));
-
-    _rippleCtrl = AnimationController(vsync: this,
-        duration: const Duration(milliseconds: 1500))..repeat();
-    _ripple = Tween<double>(begin: 0, end: 1).animate(
-        CurvedAnimation(parent: _rippleCtrl, curve: Curves.easeOut));
+    if (widget.imageBytes != null) _loadExplanation(_mode);
   }
 
-  @override
-  void dispose() {
-    _pulseCtrl.dispose();
-    _rippleCtrl.dispose();
-    super.dispose();
+  Future<void> _loadExplanation(String mode) async {
+    if (widget.imageBytes == null) return;
+    final needsLime = mode == 'LIME';
+    final key = needsLime ? 'LIME' : 'Grad-CAM';
+    if (_images[key] != null) return;
+
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final base64Image = await InferenceService.explanationImageBase64(
+        bytes: widget.imageBytes!,
+        lime: needsLime,
+      );
+      if (!mounted) return;
+      setState(() {
+        _images[key] = base64Image;
+        if (key == 'Grad-CAM') _images['Overlay'] = base64Image;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'AI Explanation is unavailable offline. Reconnect and try again.';
+        _loading = false;
+      });
+    }
   }
 
   @override
@@ -76,7 +122,10 @@ class _XAIScreenState extends State<XAIScreen> with TickerProviderStateMixin {
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 3),
                     child: GestureDetector(
-                      onTap: () => setState(() => _mode = mode),
+                      onTap: () {
+                        setState(() => _mode = mode);
+                        _loadExplanation(mode);
+                      },
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
                         padding: const EdgeInsets.symmetric(vertical: 10),
@@ -102,7 +151,7 @@ class _XAIScreenState extends State<XAIScreen> with TickerProviderStateMixin {
           Expanded(
             child: Stack(
               children: [
-                // Dark background
+                // Dark background / fallback
                 Container(
                   width: double.infinity, height: double.infinity,
                   decoration: const BoxDecoration(gradient: AppColors.darkGradient),
@@ -112,99 +161,38 @@ class _XAIScreenState extends State<XAIScreen> with TickerProviderStateMixin {
                   ),
                 ),
 
-                // Heatmap (Grad-CAM / Overlay)
-                if (_mode == 'Grad-CAM' || _mode == 'Overlay')
-                  Center(
-                    child: AnimatedBuilder(
-                      animation: _pulse,
-                      builder: (_, __) => Opacity(
-                        opacity: _opacity,
-                        child: Container(
-                          width: 220, height: 220,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: RadialGradient(
-                              colors: [
-                                Colors.red.withOpacity(_pulse.value * 0.95),
-                                Colors.orange.withOpacity(_pulse.value * 0.65),
-                                Colors.yellow.withOpacity(_pulse.value * 0.35),
-                                Colors.transparent,
-                              ],
-                              stops: const [0.0, 0.35, 0.65, 1.0],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-
-                // Ripple effect
-                Center(
-                  child: AnimatedBuilder(
-                    animation: _ripple,
-                    builder: (_, __) => Opacity(
-                      opacity: (1 - _ripple.value) * 0.4,
-                      child: Container(
-                        width: 80 + _ripple.value * 200,
-                        height: 80 + _ripple.value * 200,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.red.withOpacity(0.6), width: 2),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-
-                // LIME segments
-                if (_mode == 'LIME')
-                  Center(
+                // Real Grad-CAM / LIME / Overlay image from the backend
+                if (_images[_mode] != null)
+                  Positioned.fill(
                     child: Opacity(
-                      opacity: _opacity,
-                      child: Container(
-                        width: 200, height: 200,
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.green, width: 2.5),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Stack(children: [
-                          Positioned(top: 20, left: 10,
-                            child: Container(width: 80, height: 60,
-                              decoration: BoxDecoration(
-                                border: Border.all(color: Colors.yellow, width: 1.5),
-                                borderRadius: BorderRadius.circular(4)),
-                            )),
-                          Positioned(bottom: 20, right: 10,
-                            child: Container(width: 60, height: 50,
-                              decoration: BoxDecoration(
-                                border: Border.all(color: Colors.orange, width: 1.5),
-                                borderRadius: BorderRadius.circular(4)),
-                            )),
-                          const Center(child: Text('High\nImportance',
-                            style: TextStyle(color: Colors.greenAccent,
-                                fontSize: 13, fontWeight: FontWeight.w700),
-                            textAlign: TextAlign.center)),
-                        ]),
+                      opacity: _mode == 'Overlay' ? _opacity : 1.0,
+                      child: Image.memory(
+                        base64Decode(_images[_mode]!),
+                        fit: BoxFit.contain,
                       ),
                     ),
+                  )
+                else if (_loading)
+                  const Center(
+                    child: CircularProgressIndicator(color: AppColors.primaryGlow),
+                  )
+                else if (_error != null)
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(mainAxisSize: MainAxisSize.min, children: [
+                        const Icon(Icons.cloud_off_rounded, color: Colors.white38, size: 40),
+                        const SizedBox(height: 12),
+                        Text(_error!, textAlign: TextAlign.center,
+                            style: const TextStyle(color: Colors.white54, fontSize: 13)),
+                      ]),
+                    ),
+                  )
+                else if (widget.imageBytes == null)
+                  Center(
+                    child: Text('No captured image supplied to this screen.',
+                        style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 12)),
                   ),
-
-                // Disease region label
-                Positioned(top: 70, right: 50,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withOpacity(0.88),
-                      borderRadius: BorderRadius.circular(8)),
-                    child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(Icons.location_on_rounded, color: Colors.white, size: 12),
-                      SizedBox(width: 4),
-                      Text('Disease Region',
-                          style: TextStyle(color: Colors.white,
-                              fontSize: 11, fontWeight: FontWeight.w600)),
-                    ]),
-                  ),
-                ),
 
                 // Colour legend
                 Positioned(bottom: 20, right: 16,
@@ -232,11 +220,12 @@ class _XAIScreenState extends State<XAIScreen> with TickerProviderStateMixin {
                     decoration: BoxDecoration(
                       color: Colors.black.withOpacity(0.75),
                       borderRadius: BorderRadius.circular(10)),
-                    child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(Icons.psychology_rounded, color: AppColors.primaryGlow, size: 14),
-                      SizedBox(width: 5),
-                      Text('92% confidence', style: TextStyle(
-                          color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      const Icon(Icons.psychology_rounded, color: AppColors.primaryGlow, size: 14),
+                      const SizedBox(width: 5),
+                      Text('${(widget.confidence * 100).toStringAsFixed(1)}% ${widget.predictedLabel}',
+                          style: const TextStyle(
+                              color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
                     ]),
                   ),
                 ),
@@ -274,7 +263,7 @@ class _XAIScreenState extends State<XAIScreen> with TickerProviderStateMixin {
                 Row(children: [
                   const Icon(Icons.psychology_rounded, color: AppColors.primaryGlow, size: 18),
                   const SizedBox(width: 8),
-                  Expanded(child: Text('Why did the model predict Leaf Spot?',
+                  Expanded(child: Text('Why did the model predict ${widget.predictedLabel}?',
                     style: AppTextStyles.heading3.copyWith(color: Colors.white, fontSize: 14))),
                 ]),
                 const SizedBox(height: 10),

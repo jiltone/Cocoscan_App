@@ -337,7 +337,7 @@ class _DroneReportScreenState extends State<DroneReportScreen> with SingleTicker
                   const Text('Add Mode', style: AppTextStyles.body),
                   Switch(
                     value: _addMode,
-                    activeColor: AppColors.primary,
+                    activeThumbColor: AppColors.primary,
                     onChanged: (val) => setState(() => _addMode = val),
                   ),
                 ],
@@ -598,7 +598,7 @@ class _DroneReportScreenState extends State<DroneReportScreen> with SingleTicker
     if (selectedLoc == null || !mounted) return;
 
     final TextEditingController nameCtrl = TextEditingController();
-    bool _isSaving = false;
+    bool isSaving = false;
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -609,11 +609,11 @@ class _DroneReportScreenState extends State<DroneReportScreen> with SingleTicker
             decoration: const InputDecoration(hintText: 'Plantation Name', border: OutlineInputBorder()),
           ),
           actions: [
-            TextButton(onPressed: _isSaving ? null : () => Navigator.pop(context), child: const Text('Cancel')),
+            TextButton(onPressed: isSaving ? null : () => Navigator.pop(context), child: const Text('Cancel')),
             ElevatedButton(
-              onPressed: _isSaving ? null : () async {
+              onPressed: isSaving ? null : () async {
                 if (nameCtrl.text.isNotEmpty) {
-                  setDialogState(() => _isSaving = true);
+                  setDialogState(() => isSaving = true);
                   try {
                     final newId = await FirebaseService.addPlantation(nameCtrl.text.trim(), selectedLoc.latitude, selectedLoc.longitude);
                     if (!mounted) return;
@@ -625,12 +625,12 @@ class _DroneReportScreenState extends State<DroneReportScreen> with SingleTicker
                     _mapController?.animateCamera(CameraUpdate.newCameraPosition(CameraPosition(target: selectedLoc, zoom: 18.0)));
                     await _loadTreesForPlantation(newId);
                   } catch (e) {
-                    setDialogState(() => _isSaving = false);
+                    setDialogState(() => isSaving = false);
                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
                   }
                 }
               },
-              child: _isSaving ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text('Add'),
+              child: isSaving ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text('Add'),
             )
           ],
         )
@@ -643,7 +643,7 @@ class _DroneReportScreenState extends State<DroneReportScreen> with SingleTicker
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Add a plantation first!')));
       return;
     }
-    bool _isSaving = false;
+    bool isSaving = false;
     showDialog(
       context: context,
       builder: (context) {
@@ -653,12 +653,12 @@ class _DroneReportScreenState extends State<DroneReportScreen> with SingleTicker
             content: const Text('Do you want to label a tree at this location?'),
             actions: [
               TextButton(
-                onPressed: _isSaving ? null : () => Navigator.pop(context),
+                onPressed: isSaving ? null : () => Navigator.pop(context),
                 child: const Text('Cancel'),
               ),
               ElevatedButton(
-                onPressed: _isSaving ? null : () async {
-                  setDialogState(() => _isSaving = true);
+                onPressed: isSaving ? null : () async {
+                  setDialogState(() => isSaving = true);
                   try {
                     final newId = 'M-${_trees.length + 1}';
                     final docId = await FirebaseService.addTree(
@@ -677,11 +677,11 @@ class _DroneReportScreenState extends State<DroneReportScreen> with SingleTicker
                     });
                     Navigator.pop(context);
                   } catch (e) {
-                    setDialogState(() => _isSaving = false);
+                    setDialogState(() => isSaving = false);
                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
                   }
                 },
-                child: _isSaving ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text('Add Tree'),
+                child: isSaving ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text('Add Tree'),
               ),
             ],
           )
@@ -693,7 +693,7 @@ class _DroneReportScreenState extends State<DroneReportScreen> with SingleTicker
   void _showRemoveTreeDialog(String treeId) {
     if (_selectedPlantationId == null) return;
     final tree = _trees.firstWhere((t) => t.id == treeId);
-    bool _isRemoving = false;
+    bool isRemoving = false;
     showDialog(
       context: context,
       builder: (context) {
@@ -703,13 +703,13 @@ class _DroneReportScreenState extends State<DroneReportScreen> with SingleTicker
             content: Text('Are you sure you want to remove Tree $treeId?'),
             actions: [
               TextButton(
-                onPressed: _isRemoving ? null : () => Navigator.pop(context),
+                onPressed: isRemoving ? null : () => Navigator.pop(context),
                 child: const Text('Cancel'),
               ),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                onPressed: _isRemoving ? null : () async {
-                  setDialogState(() => _isRemoving = true);
+                onPressed: isRemoving ? null : () async {
+                  setDialogState(() => isRemoving = true);
                   try {
                     await FirebaseService.removeTree(_selectedPlantationId!, tree.docId);
                     if (mounted) {
@@ -720,11 +720,11 @@ class _DroneReportScreenState extends State<DroneReportScreen> with SingleTicker
                       Navigator.pop(context);
                     }
                   } catch (e) {
-                    setDialogState(() => _isRemoving = false);
+                    setDialogState(() => isRemoving = false);
                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
                   }
                 },
-                child: _isRemoving ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text('Remove', style: TextStyle(color: Colors.white)),
+                child: isRemoving ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text('Remove', style: TextStyle(color: Colors.white)),
               ),
             ],
           )

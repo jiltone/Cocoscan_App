@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:provider/provider.dart';
 import 'firebase_options.dart';
+import 'providers/plantation_provider.dart';
+import 'providers/scan_history_provider.dart';
 import 'screens/splash_screen.dart';
 import 'theme/app_theme.dart';
 import 'services/localization_service.dart';
@@ -29,7 +32,15 @@ void main() async {
     systemNavigationBarColor: Colors.white,
     systemNavigationBarIconBrightness: Brightness.dark,
   ));
-  runApp(const CocoScanApp());
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => PlantationProvider()),
+        ChangeNotifierProvider(create: (_) => ScanHistoryProvider()),
+      ],
+      child: const CocoScanApp(),
+    ),
+  );
 }
 
 class CocoScanApp extends StatelessWidget {

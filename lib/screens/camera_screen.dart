@@ -1,12 +1,30 @@
+import 'dart:io';
+import 'dart:typed_data';
+
 import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart';
+import '../models/plantation.dart';
+import '../providers/plantation_provider.dart';
+import '../services/firebase_service.dart';
+import '../services/tflite_service.dart' show ConfidenceTier;
 import '../theme/app_theme.dart';
+import 'drone_stream_screen.dart';
 import 'prediction_result_screen.dart';
 
 class CameraScreen extends StatefulWidget {
   final VoidCallback? onBack;
-  const CameraScreen({super.key, this.onBack});
+
+  /// When reached from a plantation tree's "Scan for disease" action, the
+  /// classification result is attached to this tree (via
+  /// PlantationProvider.setTreeLabel) in addition to the normal result
+  /// screen — see plantation_detail_screen.dart.
+  final String? plantationId;
+  final String? treeId;
+
+  const CameraScreen({super.key, this.onBack, this.plantationId, this.treeId});
 
   @override
   State<CameraScreen> createState() => _CameraScreenState();
@@ -106,14 +124,7 @@ class _CameraScreenState extends State<CameraScreen>
     try {
       final file = await _ctrl!.takePicture();
       if (!mounted) return;
-      await Future.delayed(const Duration(milliseconds: 800));
-      if (!mounted) return;
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => PredictionResultScreen(imagePath: file.path),
-        ),
-      ).then((_) => setState(() => _analyzing = false));
+      await _classifyAndNavigate(file);
     } catch (e) {
       if (!mounted) return;
       setState(() => _analyzing = false);
@@ -129,6 +140,106 @@ class _CameraScreenState extends State<CameraScreen>
     }
   }
 
+  /// Runs the real classifier (InferenceService via FirebaseService.classifyOnly:
+  /// on-device TFLite, falling back to the FastAPI backend) and navigates to
+  /// the result screen with the actual 7-class prediction — replaces the old
+  /// fake `Future.delayed` + hardcoded demo disease. Does NOT save to
+  /// history automatically — that's an explicit action on the result screen
+  /// (see PredictionResultScreen's Save to History button).
+  ///
+  /// Reads [xfile] as bytes (works on every platform, including web) rather
+  /// than constructing a dart:io File from its path — dart:io compiles on
+  /// web but most of it, including File I/O, isn't actually implemented
+  /// there and throws at runtime instead.
+  Future<void> _classifyAndNavigate(XFile xfile) async {
+    final bytes = await xfile.readAsBytes();
+    final imageFile = kIsWeb ? null : File(xfile.path);
+    await _classifyBytesAndNavigate(bytes, imagePath: xfile.path, imageFile: imageFile);
+  }
+
+  /// Shared core for both the device-camera path (above) and the drone
+  /// live-stream capture path (see the shutter button's onTap and
+  /// DroneStreamScreen) — a captured frame is a captured frame regardless
+  /// of source, so both funnel through the same classify + tree-attach +
+  /// navigate logic.
+  Future<void> _classifyBytesAndNavigate(
+    Uint8List bytes, {
+    String? imagePath,
+    File? imageFile,
+  }) async {
+    try {
+      final classification = await FirebaseService.classifyOnly(imageBytes: bytes, imageFile: imageFile);
+      if (!mounted) return;
+
+      // Reached from a plantation tree's "Scan for disease" action —
+      // attach this result to that tree in addition to showing it normally.
+      // A non-healthy prediction only becomes "diseased" when the model's
+      // own confidence tier says Confirmed; otherwise it's "uncertain"
+      // rather than forced straight to diseased.
+      if (widget.plantationId != null && widget.treeId != null) {
+        final isHealthy = classification.label == 'Healthy_Leaves';
+        final label = isHealthy
+            ? TreeLabel.healthy
+            : (classification.tier == ConfidenceTier.confirmed ? TreeLabel.diseased : TreeLabel.uncertain);
+        await context.read<PlantationProvider>().setTreeLabel(
+              widget.plantationId!,
+              widget.treeId!,
+              label,
+              diseaseName: isHealthy ? null : classification.label,
+              taggingMethod: 'Scanned',
+            );
+        if (!mounted) return;
+      }
+
+      final plantationName = widget.plantationId == null
+          ? null
+          : context.read<PlantationProvider>().byId(widget.plantationId!)?.name;
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PredictionResultScreen(
+            imagePath: imagePath,
+            diseaseKey: classification.label,
+            confidence: classification.confidence,
+            status: classification.label == 'Healthy_Leaves'
+                ? 'HEALTHY'
+                : (classification.tier == ConfidenceTier.confirmed ? 'CONFIRMED' : 'UNCERTAIN'),
+            probabilities: classification.probabilities,
+            classification: classification,
+            imageBytes: bytes,
+            plantationId: widget.plantationId,
+            plantationName: plantationName,
+            treeId: widget.treeId,
+          ),
+        ),
+      ).then((_) => setState(() => _analyzing = false));
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _analyzing = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Analysis failed: $e'),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          margin: const EdgeInsets.all(16),
+        ),
+      );
+    }
+  }
+
+  // ── Capture from a connected drone's live video feed ─────────────
+  Future<void> _captureFromDrone() async {
+    if (_analyzing) return;
+    final frame = await Navigator.push<Object?>(
+      context,
+      MaterialPageRoute(builder: (_) => const DroneStreamScreen()),
+    );
+    if (frame == null || frame is! List<int> || !mounted) return;
+    setState(() => _analyzing = true);
+    await _classifyBytesAndNavigate(Uint8List.fromList(frame));
+  }
+
   // ── Pick from gallery ───────────────────────────────────────────
   Future<void> _pickFromGallery() async {
     if (_analyzing) return;
@@ -136,14 +247,7 @@ class _CameraScreenState extends State<CameraScreen>
     final file = await picker.pickImage(source: ImageSource.gallery, imageQuality: 90);
     if (file == null || !mounted) return;
     setState(() => _analyzing = true);
-    await Future.delayed(const Duration(milliseconds: 800));
-    if (!mounted) return;
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => PredictionResultScreen(imagePath: file.path),
-      ),
-    ).then((_) => setState(() => _analyzing = false));
+    await _classifyAndNavigate(file);
   }
 
   void _goBack() {
@@ -430,9 +534,9 @@ class _CameraScreenState extends State<CameraScreen>
 
                       // Shutter button
                       GestureDetector(
-                        onTap: _captureMode == 'Gallery'
-                            ? _pickFromGallery
-                            : _captureAndAnalyze,
+                        onTap: _cameraSource == 'Drone'
+                            ? _captureFromDrone
+                            : (_captureMode == 'Gallery' ? _pickFromGallery : _captureAndAnalyze),
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 200),
                           width: _analyzing ? 72 : 80,
@@ -607,7 +711,7 @@ class _CameraScreenState extends State<CameraScreen>
                 title: const Text('Grid Overlay', style: TextStyle(color: Colors.white, fontSize: 14)),
                 trailing: Switch(
                   value: _gridOn,
-                  activeColor: AppColors.primaryGlow,
+                  activeThumbColor: AppColors.primaryGlow,
                   onChanged: (val) {
                     setModalState(() => _gridOn = val);
                     setState(() => _gridOn = val);

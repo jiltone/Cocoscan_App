@@ -1,7 +1,16 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
-import '../services/backend_service.dart';
+import 'package:provider/provider.dart';
+import '../providers/scan_history_provider.dart';
 import '../theme/app_theme.dart';
 import 'prediction_result_screen.dart';
+
+IconData _statusIcon(String status) => status == 'HEALTHY'
+    ? Icons.check_circle_outline_rounded
+    : status == 'CONFIRMED'
+        ? Icons.warning_amber_rounded
+        : Icons.help_outline_rounded;
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -13,45 +22,23 @@ class _HistoryScreenState extends State<HistoryScreen>
     with SingleTickerProviderStateMixin {
   String _filter = 'All';
   String _search = '';
-  bool _loading = true;
   late TabController _tab;
-
-  List<_ScanItem> _allScans = [];
 
   @override
   void initState() {
     super.initState();
     _tab = TabController(length: 3, vsync: this);
-    _loadScans();
+    // MainShell keeps every tab mounted via IndexedStack, so this only runs
+    // once at app startup — ScanHistoryProvider.prepend() (called by
+    // PredictionResultScreen's Save to History button) is what keeps this
+    // screen in sync afterwards, not another initState() call.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<ScanHistoryProvider>().loadIfNeeded();
+    });
   }
 
   @override
   void dispose() { _tab.dispose(); super.dispose(); }
-
-  Future<void> _loadScans() async {
-    setState(() => _loading = true);
-    try {
-      final scans = await BackendService.getScans();
-      setState(() {
-        _allScans = scans.map((dynamic item) {
-          return _ScanItem(
-            item['disease'] as String,
-            item['tree'] as String,
-            (item['confidence'] as num).toDouble(),
-            item['status'] as String,
-            item['date'] as String,
-            _statusColorFor(item['status'] as String),
-            item['sector'] as String,
-          );
-        }).toList();
-      });
-    } catch (_) {
-      if (!mounted) return;
-    } finally {
-      if (!mounted) return;
-      setState(() => _loading = false);
-    }
-  }
 
   Color _statusColorFor(String status) {
     if (status == 'CONFIRMED') return AppColors.confirmed;
@@ -59,11 +46,27 @@ class _HistoryScreenState extends State<HistoryScreen>
     return AppColors.healthy;
   }
 
-  List<_ScanItem> get _filtered {
-    var list = _allScans;
+  List<_ScanItem> _filteredFrom(List<dynamic> allScans) {
+    var list = allScans.map((dynamic item) {
+      return _ScanItem(
+        diseaseKey: item['diseaseKey'] as String? ?? 'Gray_Leaf_Spot',
+        disease: item['disease'] as String,
+        tree: item['tree'] as String,
+        confidence: (item['confidence'] as num).toDouble(),
+        status: item['status'] as String,
+        date: item['date'] as String,
+        statusColor: _statusColorFor(item['status'] as String),
+        sector: item['sector'] as String,
+        imageBase64: item['imageBase64'] as String?,
+        probabilities: (item['probabilities'] as Map?)?.cast<String, double>(),
+        plantationId: item['plantationId'] as String?,
+        plantationName: item['plantationName'] as String?,
+      );
+    }).toList();
     if (_filter == 'Confirmed') list = list.where((s) => s.status == 'CONFIRMED').toList();
     if (_filter == 'Uncertain') list = list.where((s) => s.status == 'UNCERTAIN').toList();
     if (_filter == 'Healthy')   list = list.where((s) => s.status == 'HEALTHY').toList();
+    if (_filter == 'Plantation') list = list.where((s) => s.plantationId != null).toList();
     if (_search.isNotEmpty) {
       list = list.where((s) => s.disease.toLowerCase().contains(_search.toLowerCase())
           || s.tree.toLowerCase().contains(_search.toLowerCase())).toList();
@@ -71,8 +74,29 @@ class _HistoryScreenState extends State<HistoryScreen>
     return list;
   }
 
+  void _openScan(BuildContext context, _ScanItem item) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PredictionResultScreen(
+          diseaseKey: item.diseaseKey,
+          confidence: item.confidence,
+          status: item.status,
+          probabilities: item.probabilities,
+          imageBase64: item.imageBase64,
+          plantationId: item.plantationId,
+          plantationName: item.plantationName,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final historyProvider = context.watch<ScanHistoryProvider>();
+    final loading = historyProvider.isLoading && !historyProvider.isLoaded;
+    final filtered = _filteredFrom(historyProvider.scans);
+
     return Scaffold(
       backgroundColor: AppColors.surface,
       appBar: AppBar(
@@ -129,7 +153,7 @@ class _HistoryScreenState extends State<HistoryScreen>
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
-                    children: ['All', 'Confirmed', 'Uncertain', 'Healthy'].map((f) {
+                    children: ['All', 'Confirmed', 'Uncertain', 'Healthy', 'Plantation'].map((f) {
                       final sel = _filter == f;
                       return Padding(
                         padding: const EdgeInsets.only(right: 8),
@@ -164,29 +188,36 @@ class _HistoryScreenState extends State<HistoryScreen>
               controller: _tab,
               children: [
                 // List view
-                if (_loading)
+                if (loading)
                   const Center(child: Padding(
                     padding: EdgeInsets.all(24),
                     child: CircularProgressIndicator(),
                   ))
-                else if (_filtered.isEmpty)
-                  _EmptyState()
+                else if (filtered.isEmpty)
+                  RefreshIndicator(
+                    onRefresh: () => context.read<ScanHistoryProvider>().refresh(),
+                    child: ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [_EmptyState()],
+                    ),
+                  )
                 else
-                  ListView.separated(
-                    physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _filtered.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 10),
-                    itemBuilder: (_, i) => _ScanCard(
-                      item: _filtered[i],
-                      onTap: () => Navigator.push(context,
-                          MaterialPageRoute(
-                              builder: (_) => const PredictionResultScreen())),
+                  RefreshIndicator(
+                    onRefresh: () => context.read<ScanHistoryProvider>().refresh(),
+                    child: ListView.separated(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.all(16),
+                      itemCount: filtered.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      itemBuilder: (_, i) => _ScanCard(
+                        item: filtered[i],
+                        onTap: () => _openScan(context, filtered[i]),
+                      ),
                     ),
                   ),
 
                 // Timeline
-                _TimelineView(scans: _filtered),
+                _TimelineView(scans: filtered),
 
                 // Map placeholder
                 Center(
@@ -232,23 +263,24 @@ class _ScanCard extends StatelessWidget {
       child: Row(children: [
         Container(
           width: 50, height: 50,
+          clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
             color: item.statusColor.withOpacity(0.12),
             borderRadius: BorderRadius.circular(14),
           ),
-          child: Icon(
-            item.status == 'HEALTHY'
-                ? Icons.check_circle_outline_rounded
-                : item.status == 'CONFIRMED'
-                ? Icons.warning_amber_rounded
-                : Icons.help_outline_rounded,
-            color: item.statusColor, size: 24),
+          child: item.imageBase64 != null
+              ? Image.memory(base64Decode(item.imageBase64!), fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Icon(_statusIcon(item.status), color: item.statusColor, size: 24))
+              : Icon(_statusIcon(item.status), color: item.statusColor, size: 24),
         ),
         const SizedBox(width: 12),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              Text(item.disease, style: AppTextStyles.heading3.copyWith(fontSize: 14)),
+              Expanded(
+                child: Text(item.disease, style: AppTextStyles.heading3.copyWith(fontSize: 14),
+                    overflow: TextOverflow.ellipsis),
+              ),
               const SizedBox(width: 6),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -264,6 +296,22 @@ class _ScanCard extends StatelessWidget {
             Text('${item.tree}  ·  ${item.sector}',
                 style: AppTextStyles.caption),
             Text(item.date, style: AppTextStyles.caption),
+            if (item.isPlantation) ...[
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.secondary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.park_rounded, size: 10, color: AppColors.secondary),
+                  const SizedBox(width: 3),
+                  Text(item.plantationName ?? 'Plantation', style: const TextStyle(
+                      color: AppColors.secondary, fontSize: 9, fontWeight: FontWeight.w700)),
+                ]),
+              ),
+            ],
           ]),
         ),
         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
@@ -332,6 +380,15 @@ class _TimelineView extends StatelessWidget {
                           fontSize: 12, fontWeight: FontWeight.w700,
                           color: s.statusColor)),
                     ]),
+                    if (s.isPlantation) ...[
+                      const SizedBox(height: 6),
+                      Row(mainAxisSize: MainAxisSize.min, children: [
+                        const Icon(Icons.park_rounded, size: 12, color: AppColors.secondary),
+                        const SizedBox(width: 4),
+                        Text(s.plantationName ?? 'Plantation', style: const TextStyle(
+                            color: AppColors.secondary, fontSize: 11, fontWeight: FontWeight.w700)),
+                      ]),
+                    ],
                   ]),
                 ),
               ),
@@ -358,9 +415,27 @@ class _EmptyState extends StatelessWidget {
 }
 
 class _ScanItem {
-  final String disease, tree, status, date, sector;
+  final String diseaseKey, disease, tree, status, date, sector;
   final double confidence;
   final Color statusColor;
-  const _ScanItem(this.disease, this.tree, this.confidence, this.status,
-      this.date, this.statusColor, this.sector);
+  final String? imageBase64;
+  final Map<String, double>? probabilities;
+  final String? plantationId;
+  final String? plantationName;
+  const _ScanItem({
+    required this.diseaseKey,
+    required this.disease,
+    required this.tree,
+    required this.confidence,
+    required this.status,
+    required this.date,
+    required this.statusColor,
+    required this.sector,
+    this.imageBase64,
+    this.probabilities,
+    this.plantationId,
+    this.plantationName,
+  });
+
+  bool get isPlantation => plantationId != null;
 }

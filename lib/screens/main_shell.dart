@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'home_screen.dart';
 import 'camera_screen.dart';
-import 'drone_report_screen.dart';
+import 'plantation_mapper_screen.dart';
 import 'history_screen.dart';
 import 'profile_screen.dart';
 import '../services/firebase_service.dart';
@@ -44,7 +44,7 @@ class _MainShellState extends State<MainShell> {
       onTabChange: _changeTab,
     ),
     CameraScreen(onBack: () => _changeTab(0)),
-    const DroneReportScreen(),
+    PlantationMapperScreen(role: widget.role),
     const HistoryScreen(),
     ProfileScreen(
       role: widget.role,
@@ -91,9 +91,9 @@ class _MainShellState extends State<MainShell> {
                 label: 'Scan',
               ),
               NavigationDestination(
-                icon: Icon(Icons.airplanemode_active_outlined),
-                selectedIcon: Icon(Icons.airplanemode_active_rounded),
-                label: 'Drone',
+                icon: Icon(Icons.park_outlined),
+                selectedIcon: Icon(Icons.park_rounded),
+                label: 'Plantation',
               ),
               NavigationDestination(
                 icon: Icon(Icons.history_outlined),

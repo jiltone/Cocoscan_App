@@ -45,5 +45,21 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+
+	<!-- Required by the camera package (leaf/tree scan capture). Without
+	     this key, iOS kills the app the instant it tries to open the
+	     camera, and App Store review rejects the build outright. -->
+	<key>NSCameraUsageDescription</key>
+	<string>CocoScan uses the camera to photograph coconut leaves and trees for disease detection.</string>
+
+	<!-- Required by image_picker's gallery source (Scan screen's "Gallery"
+	     option, and the Drone Detect aerial-photo picker). -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>CocoScan needs access to your photo library so you can select an existing leaf or drone photo to scan.</string>
+
+	<!-- Required by geolocator (plantation boundary marking, "Use Current
+	     Location", and geo-tagging trees on the map). -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>CocoScan uses your location to mark plantation boundaries and geo-tag scanned trees on the map.</string>
 </dict>
 </plist>

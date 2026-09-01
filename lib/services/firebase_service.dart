@@ -1,15 +1,47 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image/image.dart' as img;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../data/disease_info.dart';
+import 'inference_service.dart';
+import 'tflite_service.dart' show ClassificationResult, ConfidenceTier;
+
+/// Images are stored as small compressed base64 thumbnails directly on the
+/// Firestore document, not in Firebase Cloud Storage — Storage requires the
+/// (paid) Blaze billing plan to actually provision a bucket, while
+/// Firestore's free tier already covers this app's needs. Keep thumbnails
+/// well under Firestore's 1 MiB document limit.
 class FirebaseService {
   static final FirebaseAuth _auth = FirebaseAuth.instance;
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  static final FirebaseStorage _storage = FirebaseStorage.instance;
+
+  /// Decodes [bytes], downsizes so neither dimension exceeds [maxDimension],
+  /// re-encodes as JPEG at [quality] and returns it base64-encoded. Pure
+  /// in-memory byte processing (package:image), so it works on every
+  /// platform including web. Returns null if the bytes aren't a decodable
+  /// image — callers should treat that as "no thumbnail", not a hard error.
+  static String? _compressToBase64Jpeg(
+    Uint8List bytes, {
+    required int maxDimension,
+    required int quality,
+  }) {
+    final decoded = img.decodeImage(bytes);
+    if (decoded == null) return null;
+    final resized = (decoded.width > maxDimension || decoded.height > maxDimension)
+        ? img.copyResize(
+            decoded,
+            width: decoded.width >= decoded.height ? maxDimension : null,
+            height: decoded.height > decoded.width ? maxDimension : null,
+          )
+        : decoded;
+    final jpeg = img.encodeJpg(resized, quality: quality);
+    return base64Encode(jpeg);
+  }
 
   static const _tokenKey = 'firebase_user_id';
 
@@ -189,6 +221,19 @@ class FirebaseService {
     }
   }
 
+  /// Every registered Farmer account — used by an Agricultural Officer to
+  /// pick who to assign to a plantation (see ManageFarmersScreen).
+  static Future<List<Map<String, dynamic>>> getFarmers() async {
+    final query = await _firestore.collection('users').where('role', isEqualTo: 'Farmer').get();
+    return query.docs
+        .map((doc) => {
+              'uid': doc.id,
+              'name': doc.data()['name'] ?? '',
+              'email': doc.data()['email'] ?? '',
+            })
+        .toList();
+  }
+
   static Future<void> updateProfile({
     String? name,
     String? email,
@@ -219,24 +264,45 @@ class FirebaseService {
       final userId = await getCurrentUserId();
       if (userId == null) throw Exception('Not authenticated.');
 
-      final imageRef = _storage
-          .ref()
-          .child('avatars/$userId/${DateTime.now().millisecondsSinceEpoch}.jpg');
-      await imageRef.putData(
-        avatarBytes,
-        SettableMetadata(contentType: 'image/jpeg'),
-      );
-      final imageUrl = await imageRef.getDownloadURL();
+      final avatarBase64 = _compressToBase64Jpeg(avatarBytes, maxDimension: 200, quality: 70);
+      if (avatarBase64 == null) {
+        throw Exception('Could not decode the selected image.');
+      }
 
       final userRef = _firestore.collection('users').doc(userId);
-      await userRef.set({'avatar': imageUrl}, SetOptions(merge: true));
-      await _auth.currentUser?.updatePhotoURL(imageUrl);
-      return imageUrl;
+      await userRef.set({'avatar': avatarBase64}, SetOptions(merge: true));
+      // Note: no updatePhotoURL() call — Firebase Auth's photoURL field
+      // expects an actual URL, not a base64 blob, and has its own length
+      // limit. The avatar lives on the Firestore user doc only.
+      return avatarBase64;
     } catch (e) {
       throw Exception('Failed to upload profile image: ${e.toString()}');
     }
   }
 
+  static String _normalizeStatus(dynamic raw) {
+    final s = (raw ?? '').toString().toUpperCase();
+    if (s == 'CONFIRMED' || s == 'UNCERTAIN' || s == 'HEALTHY') return s;
+    return s.isEmpty ? 'UNCERTAIN' : s;
+  }
+
+  /// Older scan documents (saved before diseaseKey was added) only have the
+  /// display name (e.g. "Gray Leaf Spot") — reverse-look-up the internal
+  /// key so History can still fully reconstruct those results when tapped.
+  static String _guessDiseaseKey(String displayName) {
+    for (final entry in diseaseInfoByKey.entries) {
+      if (entry.value.label == displayName) return entry.key;
+    }
+    return 'Gray_Leaf_Spot';
+  }
+
+  /// Reads every scan for the current user and sorts client-side rather
+  /// than via a Firestore orderBy — orderBy silently drops any document
+  /// missing that exact field, which hid every older scan written before
+  /// this schema (they use 'timestamp'/'diseaseName'/'tier' instead of
+  /// 'createdAt'/'disease'/'status'). Reading both schemas here means old
+  /// history is visible again instead of just working around the missing
+  /// composite index.
   static Future<List<dynamic>> getScans() async {
     try {
       final userId = await getCurrentUserId();
@@ -245,47 +311,95 @@ class FirebaseService {
       final scansQuery = await _firestore
           .collection('scans')
           .where('userId', isEqualTo: userId)
-          .orderBy('createdAt', descending: true)
           .get();
 
-      return scansQuery.docs.map((doc) {
+      final scans = scansQuery.docs.map((doc) {
         final data = doc.data();
+        final timestamp = data['createdAt'] ?? data['timestamp'];
+        final diseaseName = (data['disease'] ?? data['diseaseName'] ?? '') as String;
+        final probabilitiesRaw = data['probabilities'];
         return {
           'id': doc.id,
-          'disease': data['disease'] ?? '',
+          'diseaseKey': data['diseaseKey'] as String? ?? _guessDiseaseKey(diseaseName),
+          'disease': diseaseName,
           'tree': data['tree'] ?? '',
-          'confidence': data['confidence'] ?? 0.0,
-          'status': data['status'] ?? '',
-          'date': _formatDate(data['createdAt']),
+          'confidence': (data['confidence'] as num?)?.toDouble() ?? 0.0,
+          'status': _normalizeStatus(data['status'] ?? data['tier']),
+          'date': _formatDate(timestamp),
+          // Raw epoch ms (not just the display string above) so Home/
+          // Analytics can bucket by real day/week/month instead of
+          // re-parsing a formatted date string.
+          'timestampMs': timestamp is Timestamp ? timestamp.millisecondsSinceEpoch : null,
           'sector': data['sector'] ?? '',
           'location': data['location'] ?? '',
           'model': data['model'] ?? '',
           'processingTime': data['processingTime'] ?? '',
+          'imageBase64': data['imageBase64'],
+          'probabilities': probabilitiesRaw is Map
+              ? probabilitiesRaw.map((k, v) => MapEntry(k as String, (v as num).toDouble()))
+              : null,
+          'plantationId': data['plantationId'],
+          'plantationName': data['plantationName'],
+          'plantationTreeId': data['plantationTreeId'],
+          '_sortTs': timestamp,
         };
       }).toList();
+
+      scans.sort((a, b) {
+        final ta = a['_sortTs'];
+        final tb = b['_sortTs'];
+        if (ta == null && tb == null) return 0;
+        if (ta == null) return 1;
+        if (tb == null) return -1;
+        return (tb as Timestamp).compareTo(ta as Timestamp);
+      });
+      for (final s in scans) {
+        (s as Map).remove('_sortTs');
+      }
+      return scans;
     } catch (e) {
       throw Exception('Failed to load scans: ${e.toString()}');
     }
   }
 
-  static Future<Map<String, dynamic>> predict({
-    required File image,
+  /// Runs the classifier only — no Firestore write. [imageFile] is optional
+  /// and only enables the on-device TFLite path (pass null on web; dart:io
+  /// File operations aren't actually supported there despite compiling).
+  static Future<ClassificationResult> classifyOnly({
+    required Uint8List imageBytes,
+    File? imageFile,
+  }) {
+    return InferenceService.classify(bytes: imageBytes, file: imageFile);
+  }
+
+  /// Explicit "Save to History" action — persists a classification already
+  /// produced by [classifyOnly] to the `scans` collection, with a
+  /// compressed thumbnail stored directly on the document (see class doc
+  /// comment: no Firebase Storage bucket).
+  ///
+  /// [plantationId]/[plantationName]/[treeId] are set only when this scan
+  /// came from a plantation tree's "Scan for disease" action — they let
+  /// History distinguish plantation scans from personal ones and let
+  /// PredictionResultScreen offer a "View Plantation" shortcut.
+  static Future<Map<String, dynamic>> saveScanToHistory({
+    required ClassificationResult classification,
+    required Uint8List imageBytes,
+    String? plantationId,
+    String? plantationName,
+    String? treeId,
   }) async {
     try {
       final userId = await getCurrentUserId();
       if (userId == null) throw Exception('Not authenticated.');
 
-      // Upload image to Firebase Storage
-      final imageRef = _storage.ref().child('scans/$userId/${DateTime.now().millisecondsSinceEpoch}.jpg');
-      await imageRef.putFile(image);
-      final imageUrl = await imageRef.getDownloadURL();
+      // A missing/undecodable image is non-fatal: the scan still saves,
+      // just without a thumbnail.
+      final imageBase64 = _compressToBase64Jpeg(imageBytes, maxDimension: 320, quality: 55);
+      final prediction = _predictionFromClassification(classification);
 
-      // Simulate AI prediction (in real app, this would call an AI service)
-      final prediction = _simulatePrediction();
-
-      // Save scan to Firestore
       final scanData = {
         'userId': userId,
+        'diseaseKey': prediction['diseaseKey'],
         'disease': prediction['disease'],
         'tree': prediction['treeId'],
         'confidence': prediction['confidence'],
@@ -294,13 +408,17 @@ class FirebaseService {
         'location': prediction['location'],
         'model': prediction['model'],
         'processingTime': prediction['processingTime'],
-        'imageUrl': imageUrl,
+        'imageBase64': imageBase64,
+        // Full breakdown so re-opening a saved scan from History shows the
+        // real per-class probabilities, not just a single-entry fallback.
+        'probabilities': classification.probabilities,
+        'plantationId': plantationId,
+        'plantationName': plantationName,
+        'plantationTreeId': treeId,
         'createdAt': FieldValue.serverTimestamp(),
       };
 
       final scanRef = await _firestore.collection('scans').add(scanData);
-
-      // Update user stats
       await _updateUserStats(userId, prediction['status'] == 'HEALTHY');
 
       return {
@@ -312,8 +430,18 @@ class FirebaseService {
         },
       };
     } catch (e) {
-      throw Exception('Prediction failed: ${e.toString()}');
+      throw Exception('Failed to save scan: ${e.toString()}');
     }
+  }
+
+  /// Convenience wrapper combining [classifyOnly] + [saveScanToHistory] for
+  /// call sites that want the old auto-save-on-classify behaviour.
+  static Future<Map<String, dynamic>> predict({
+    required Uint8List imageBytes,
+    File? imageFile,
+  }) async {
+    final classification = await classifyOnly(imageBytes: imageBytes, imageFile: imageFile);
+    return saveScanToHistory(classification: classification, imageBytes: imageBytes);
   }
 
   static Future<void> logout() async {
@@ -358,33 +486,30 @@ class FirebaseService {
     return double.parse((3 + totalScans * 0.1 + healthRatio * 2).toStringAsFixed(1));
   }
 
-  static Map<String, dynamic> _simulatePrediction() {
-    final diseases = [
-      {'name': 'Leaf Spot', 'status': 'CONFIRMED'},
-      {'name': 'Lethal Yellowing', 'status': 'UNCERTAIN'},
-      {'name': 'Bud Rot', 'status': 'CONFIRMED'},
-      {'name': 'Stem Bleeding', 'status': 'UNCERTAIN'},
-      {'name': 'Healthy', 'status': 'HEALTHY'}
-    ];
-
-    final random = DateTime.now().millisecondsSinceEpoch % diseases.length;
-    final disease = diseases[random];
-    final confidence = 0.60 + (DateTime.now().second % 41) / 100;
+  /// Builds the scan/prediction map from a real ClassificationResult
+  /// (7 classes: 6 diseases + Healthy_Leaves). Healthy_Leaves always gets
+  /// its own 'HEALTHY' status — it is never scored as a disease tier, even
+  /// though it shares the same softmax output as the other 6 classes.
+  static Map<String, dynamic> _predictionFromClassification(ClassificationResult result) {
+    final info = diseaseInfoByKey[result.label] ?? diseaseInfoByKey['Healthy_Leaves']!;
+    final isHealthy = result.label == 'Healthy_Leaves';
+    final status = isHealthy
+        ? 'HEALTHY'
+        : (result.tier == ConfidenceTier.confirmed ? 'CONFIRMED' : 'UNCERTAIN');
 
     return {
-      'disease': disease['name'],
-      'confidence': double.parse(confidence.toStringAsFixed(2)),
-      'status': disease['status'],
-      'statusColor': disease['status'] == 'CONFIRMED' ? '#D32F2F' :
-                    disease['status'] == 'UNCERTAIN' ? '#FBC02D' : '#388E3C',
+      'diseaseKey': result.label,
+      'disease': info.label,
+      'confidence': result.confidence,
+      'status': status,
+      'statusColor': isHealthy ? '#2E7D32' : (status == 'CONFIRMED' ? '#D32F2F' : '#FBC02D'),
       'treeId': 'Tree #${String.fromCharCode(65 + (DateTime.now().second % 26))}-${1 + (DateTime.now().minute % 99)}',
-      'location': 'Sector A — Row 4, Plot 14',
-      'model': 'CocoScan AI v2.1 (MobileNet)',
-      'processingTime': '${(1.2 + (DateTime.now().millisecond % 60) / 100).toStringAsFixed(1)} seconds',
-      'probabilities': diseases.map((item) => ({
-        'label': item['name'],
-        'value': item['name'] == disease['name'] ? confidence : (0.01 + (DateTime.now().microsecond % 30) / 100)
-      })).toList(),
+      'location': 'Unmapped scan',
+      'model': 'CocoScan ResNet50 (7-class)',
+      'processingTime': '—',
+      'probabilities': result.probabilities.entries
+          .map((e) => {'label': e.key, 'value': e.value})
+          .toList(),
     };
   }
 

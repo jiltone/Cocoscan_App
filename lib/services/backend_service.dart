@@ -59,9 +59,10 @@ class BackendService {
   }
 
   static Future<Map<String, dynamic>> predict({
-    required File image,
+    required Uint8List imageBytes,
+    File? imageFile,
   }) async {
-    return await FirebaseService.predict(image: image);
+    return await FirebaseService.predict(imageBytes: imageBytes, imageFile: imageFile);
   }
 
   static Future<void> logout() async {

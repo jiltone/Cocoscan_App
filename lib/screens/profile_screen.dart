@@ -7,6 +7,7 @@ import '../services/backend_service.dart';
 import '../services/theme_service.dart';
 import '../services/localization_service.dart';
 import '../theme/app_theme.dart';
+import '../utils/avatar_utils.dart';
 import 'login_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -532,10 +533,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Help & FAQ', style: AppTextStyles.heading3),
-        content: Column(
+        content: const Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
+          children: [
             Text('Need help with CocoScan?', style: AppTextStyles.body),
             SizedBox(height: 12),
             Text('- Edit your details via the profile edit button.', style: AppTextStyles.caption),
@@ -604,8 +605,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (_avatarBytes != null) {
       return Image.memory(_avatarBytes!, width: width, height: height, fit: BoxFit.cover);
     }
-    if (_avatarUrl?.isNotEmpty ?? false) {
-      return Image.network(_avatarUrl!, width: width, height: height, fit: BoxFit.cover,
+    final provider = avatarImageProvider(_avatarUrl);
+    if (provider != null) {
+      return Image(image: provider, width: width, height: height, fit: BoxFit.cover,
           errorBuilder: (_, __, ___) => _avatarPlaceholder());
     }
     return _avatarPlaceholder();

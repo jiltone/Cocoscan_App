@@ -1,0 +1,85 @@
+workflows:
+  ios-release:
+    name: CocoScan iOS Release
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    integrations:
+      # Set this up in Codemagic UI: Teams -> Integrations -> App Store
+      # Connect -> add your API key (generated in App Store Connect ->
+      # Users and Access -> Keys). Name it exactly "cocoscan_appstore"
+      # here, or change this value to whatever you name it there.
+      app_store_connect: cocoscan_appstore
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.example.cocoscan
+      vars:
+        XCODE_WORKSPACE: "ios/Runner.xcworkspace"
+        XCODE_SCHEME: "Runner"
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Get Flutter packages
+        script: flutter packages pub get
+
+      - name: Install CocoaPods dependencies
+        script: |
+          cd ios && pod install
+
+      # Codemagic auto-generates matching certificates/provisioning
+      # profiles from the App Store Connect integration above and wires
+      # them into the Xcode project — no manual .p12/.mobileprovision
+      # export needed.
+      - name: Set up code signing
+        script: xcode-project use-profiles
+
+      - name: Flutter build ipa
+        script: |
+          flutter build ipa --release \
+            --export-options-plist=/Users/builder/export_options.plist
+
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+
+    publishing:
+      email:
+        recipients:
+          - pannilagesachinthadilshan@gmail.com
+        notify:
+          success: true
+          failure: true
+      app_store_connect:
+        auth: integration
+        # Uploads to TestFlight automatically on every build on this
+        # workflow. Flip to true only once you're ready for a real public
+        # App Store release review.
+        submit_to_testflight: true
+        submit_to_app_store: false
+
+  android-release:
+    name: CocoScan Android Release
+    max_build_duration: 60
+    instance_type: linux_x2
+    environment:
+      vars:
+        PACKAGE_NAME: "com.example.cocoscan"
+      flutter: stable
+    scripts:
+      - name: Get Flutter packages
+        script: flutter packages pub get
+      - name: Build APK
+        script: flutter build apk --release
+      - name: Build AAB (for Play Store)
+        script: flutter build appbundle --release
+    artifacts:
+      - build/**/outputs/**/*.apk
+      - build/**/outputs/**/*.aab
+    publishing:
+      email:
+        recipients:
+          - pannilagesachinthadilshan@gmail.com
+        notify:
+          success: true
+          failure: true

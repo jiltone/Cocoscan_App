@@ -2,9 +2,12 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Users collection: only the authenticated user can read/write their own doc
+    // Users collection: any signed-in user can read profiles (needed for
+    // Agricultural Officers to look up farmers to assign to a plantation —
+    // see FirebaseService.getFarmers()), but only the owner can write.
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
     }
 
     // Scans collection: user can only read/write their own scans
@@ -12,6 +15,27 @@ service cloud.firestore {
       allow read: if request.auth != null && resource.data.userId == request.auth.uid;
       allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
       allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+
+    // Plantations collection: visible to the Agricultural Officer who
+    // created it and to the farmers they've assigned (memberUids).
+    // Officers can freely update (boundary, members, trees); assigned
+    // farmers can update trees (tagging) but not the boundary, name, or
+    // membership.
+    match /plantations/{plantationId} {
+      function isOfficerOwner() {
+        return request.auth != null && resource.data.officerId == request.auth.uid;
+      }
+      function isMember() {
+        return request.auth != null && request.auth.uid in resource.data.memberUids;
+      }
+
+      allow read: if isOfficerOwner() || isMember();
+      allow create: if request.auth != null && request.resource.data.officerId == request.auth.uid;
+      allow update: if isOfficerOwner()
+        || (isMember() && !request.resource.data.diff(resource.data).affectedKeys()
+              .hasAny(['officerId', 'officerName', 'members', 'memberUids', 'boundaryPoints', 'name']));
+      allow delete: if isOfficerOwner();
     }
   }
 }
